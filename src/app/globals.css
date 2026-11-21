@@ -1,0 +1,220 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Light theme (default) - softened palette */
+:root {
+  --bg-page: #ECEFF3;
+  --bg-card: #F4F6F8;
+  --bg-section: #E3E6EC;
+  --bg-raised: #F4F6F8;
+  --bg-input: #F0F3F6;
+  --text-primary: #1E293B;
+  --text-secondary: #475569;
+  --text-muted: #64748B;
+  --border: #D4DBE3;
+  --border-strong: #C1C9D4;
+  --border-focus: #123B63;
+  --navy: #123B63;
+  --navy-hover: #0E2F4F;
+  --gold: #B7791F;
+  --gold-hover: #96601A;
+  --gold-text: #7A4F12;
+  --success: #15803D;
+  --success-bg: #EAF7EF;
+  --warning: #B45309;
+  --warning-bg: #FDF4E3;
+  --error: #B91C1C;
+  --error-bg: #FDECEC;
+  --info: #1D4ED8;
+  --info-bg: #EAF1FD;
+  --easy: #15803D;
+  --easy-bg: #EAF7EF;
+  --medium: #B45309;
+  --medium-bg: #FDF4E3;
+  --hard: #B91C1C;
+  --hard-bg: #FDECEC;
+  --focus-ring: #123B63;
+  --focus-ring-offset: #F4F6F8;
+  --row-hover: #E3E6EC;
+  --badge-default-bg: #D4DBE3;
+  --badge-default-text: #475569;
+}
+
+/* Dark theme */
+.dark {
+  --bg-page: #181818;
+  --bg-card: #202020;
+  --bg-section: #202020;
+  --bg-raised: #282828;
+  --bg-input: #1B1B1B;
+  --text-primary: #E8E8E8;
+  --text-secondary: #B8B8B8;
+  --text-muted: #A0A0A0;
+  --border: #383838;
+  --border-strong: #484848;
+  --border-focus: #93B4F4;
+  --navy: #2457A7;
+  --navy-hover: #1E4A90;
+  --gold: #C98A2A;
+  --gold-hover: #D49B3A;
+  --gold-text: #E8D5A0;
+  --success: #22C55E;
+  --success-bg: #1A3A24;
+  --warning: #F59E0B;
+  --warning-bg: #3D2F0F;
+  --error: #EF4444;
+  --error-bg: #3A1A1A;
+  --info: #3B82F6;
+  --info-bg: #1A2A4A;
+  --easy: #22C55E;
+  --easy-bg: #1A3A24;
+  --medium: #F59E0B;
+  --medium-bg: #3D2F0F;
+  --hard: #EF4444;
+  --hard-bg: #3A1A1A;
+  --focus-ring: #93B4F4;
+  --focus-ring-offset: #181818;
+  --row-hover: #292929;
+  --badge-default-bg: #383838;
+  --badge-default-text: #B8B8B8;
+}
+
+body {
+  background-color: var(--bg-page);
+  color: var(--text-primary);
+  margin: 0;
+  min-height: 100vh;
+}
+
+/* Prevent flash of light theme on dark mode */
+html.dark body {
+  background-color: var(--bg-page);
+  color: var(--text-primary);
+}
+
+/* Focus visible */
+:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--focus-ring), 0 0 0 4px var(--focus-ring-offset);
+}
+
+/* Links - base style without underline */
+a {
+  color: var(--navy);
+  text-decoration: none;
+  transition: color 0.15s ease;
+}
+
+a:hover {
+  color: var(--navy-hover);
+}
+
+/* Specific link overrides for components that need different behavior */
+
+/* Header nav links - handled in component */
+/* Footer links - handled in component */
+/* Problem titles - handled in component */
+
+button:disabled {
+  @apply opacity-50 cursor-not-allowed;
+}
+
+/* Custom scrollbar for horizontal scrolling */
+.scrollbar-thin::-webkit-scrollbar {
+  height: 6px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-track {
+  background-color: transparent;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background-color: var(--border-strong);
+  border-radius: 9999px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb:hover {
+  background-color: var(--text-muted);
+}
+
+/* For Firefox */
+.scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+}
+
+/* Skeleton loading animation */
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.animate-pulse-slow {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* Utility classes for theme-aware colors */
+.bg-bg-page { background-color: var(--bg-page); }
+.bg-bg-card { background-color: var(--bg-card); }
+.bg-bg-section { background-color: var(--bg-section); }
+.bg-bg-raised { background-color: var(--bg-raised); }
+.bg-bg-input { background-color: var(--bg-input); }
+.text-text-primary { color: var(--text-primary); }
+.text-text-secondary { color: var(--text-secondary); }
+.text-text-muted { color: var(--text-muted); }
+.border-border { border-color: var(--border); }
+.border-border-strong { border-color: var(--border-strong); }
+.text-navy { color: var(--navy); }
+.text-navy-hover { color: var(--navy-hover); }
+.bg-navy { background-color: var(--navy); }
+.hover\:bg-navy-hover:hover { background-color: var(--navy-hover); }
+.text-gold { color: var(--gold); }
+.text-gold-hover { color: var(--gold-hover); }
+.text-gold-text { color: var(--gold-text); }
+.bg-success-bg { background-color: var(--success-bg); }
+.text-success { color: var(--success); }
+.bg-warning-bg { background-color: var(--warning-bg); }
+.text-warning { color: var(--warning); }
+.bg-error-bg { background-color: var(--error-bg); }
+.text-error { color: var(--error); }
+.bg-info-bg { background-color: var(--info-bg); }
+.text-info { color: var(--info); }
+.bg-easy-bg { background-color: var(--easy-bg); }
+.text-easy { color: var(--easy); }
+.bg-medium-bg { background-color: var(--medium-bg); }
+.text-medium { color: var(--medium); }
+.bg-hard-bg { background-color: var(--hard-bg); }
+.text-hard { color: var(--hard); }
+.hover\:bg-bg-section:hover { background-color: var(--bg-section); }
+.hover\:bg-bg-raised:hover { background-color: var(--bg-raised); }
+.hover\:text-text-primary:hover { color: var(--text-primary); }
+.hover\:text-text-secondary:hover { color: var(--text-secondary); }
+.hover\:text-text-muted:hover { color: var(--text-muted); }
+.hover\:text-gold:hover { color: var(--gold); }
+.hover\:bg-gold\/10:hover { background-color: color-mix(in srgb, var(--gold) 10%, transparent); }
+.focus\:ring-navy:focus { --tw-ring-color: var(--navy); }
+.focus\:ring-navy:focus-visible { --tw-ring-color: var(--navy); }
+.focus\:border-transparent:focus { border-color: transparent; }
+.focus\:ring-2:focus { box-shadow: 0 0 0 2px var(--focus-ring); }
+
+/* Dark mode scrollbar */
+.dark .scrollbar-thin::-webkit-scrollbar-thumb {
+  background-color: var(--border-strong);
+}
+.dark .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+  background-color: var(--text-muted);
+}
+.dark .scrollbar-thin {
+  scrollbar-color: var(--border-strong) transparent;
+}
