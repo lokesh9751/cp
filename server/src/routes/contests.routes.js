@@ -8,6 +8,7 @@ import {
 } from '../controllers/contests.controller.js';
 import { contestSlugSchema, registrationBodySchema, contestReactionSchema } from '../validators/contests.validator.js';
 import { optionalAuth, requireAuth } from '../middleware/auth.js';
+import { getLeaderboardController, streamLeaderboardController } from '../controllers/leaderboard.controller.js';
 
 const router = express.Router();
 
@@ -24,7 +25,8 @@ router.get('/', optionalAuth, listContests);
  * @access Public (with optional auth for personalized data)
  */
 router.get('/:slug', optionalAuth, validateParams(contestSlugSchema), getContestBySlug);
-
+router.get('/:slug/leaderboard', validateParams(contestSlugSchema), getLeaderboardController);
+router.get('/:slug/leaderboard/stream', validateParams(contestSlugSchema), streamLeaderboardController);
 /**
  * @route POST /api/contests/:slug/register
  * @desc Register for a contest

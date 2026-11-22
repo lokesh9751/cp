@@ -130,26 +130,53 @@ export async function healthCheck() {
 
 // --- Problems & Bookmarks APIs ---
 
-export async function getProblems(params = {}, accessToken = null, options = {}) {
-  const query = new URLSearchParams();
+export async function getProblems(paramsOrToken = {}, maybeTokenOrOptions = {}, maybeOptions = {}) {
+  let params = {};
+  let accessToken = null;
+  let options = {};
 
-  if (params.type && params.type !== 'all') query.set('type', params.type);
-  if (params.search && params.search.trim()) query.set('search', params.search.trim());
-  if (params.difficulty && params.difficulty !== 'all') query.set('difficulty', params.difficulty);
-  if (params.topic && params.topic !== 'all') query.set('topic', params.topic);
-  if (params.status && params.status !== 'all') query.set('status', params.status);
-  if (params.page && Number(params.page) > 0) query.set('page', String(params.page));
-  if (params.limit && Number(params.limit) > 0) query.set('limit', String(params.limit));
+  if (typeof paramsOrToken === 'string') {
+    accessToken = paramsOrToken;
+    params = typeof maybeTokenOrOptions === 'object' && maybeTokenOrOptions !== null ? maybeTokenOrOptions : {};
+    options = maybeOptions || {};
+  } else {
+    params = typeof paramsOrToken === 'object' && paramsOrToken !== null ? paramsOrToken : {};
+    if (typeof maybeTokenOrOptions === 'string') {
+      accessToken = maybeTokenOrOptions;
+      options = maybeOptions || {};
+    } else {
+      options = maybeTokenOrOptions || {};
+    }
+  }
 
-  const qs = query.toString();
-  const endpoint = qs ? `/api/problems?${qs}` : '/api/problems';
+  const sp = new URLSearchParams();
+  const cleanSearch = typeof params.search === 'string' ? params.search.trim() : '';
+  if (cleanSearch) sp.set('search', cleanSearch);
+  if (params.difficulty) sp.set('difficulty', String(params.difficulty));
+  if (params.type) sp.set('type', String(params.type));
+  if (params.topic) sp.set('topic', String(params.topic));
+  if (params.page) sp.set('page', String(params.page));
+  if (params.limit) sp.set('limit', String(params.limit));
 
-  const { data } = await apiRequest(endpoint, {
+  const qs = sp.toString() ? `?${sp.toString()}` : '';
+  const { data } = await apiRequest(`/api/problems${qs}`, {
     method: 'GET',
     headers: authHeaders(accessToken),
     signal: options.signal,
   });
   return data;
+}
+
+export async function getProblemBySlug(slug, accessToken = null, options = {}) {
+  const { data } = await apiRequest(
+    `/api/problems/${encodeURIComponent(slug)}`,
+    {
+      method: 'GET',
+      headers: authHeaders(accessToken),
+      signal: options.signal,
+    }
+  );
+  return data?.problem || data;
 }
 
 export async function toggleProblemBookmark(slug, accessToken) {
@@ -161,6 +188,49 @@ export async function toggleProblemBookmark(slug, accessToken) {
     }
   );
   return data;
+}
+
+// --- Submission APIs ---
+
+export async function runCode({ slug, language, code, customInput }, accessToken) {
+  const { data } = await apiRequest('/api/submissions/run', {
+    method: 'POST',
+    headers: authHeaders(accessToken),
+    body: JSON.stringify({ slug, language, code, customInput }),
+  });
+  return data;
+}
+
+export async function submitCode({ slug, language, code, contestId }, accessToken) {
+  const { data } = await apiRequest('/api/submissions', {
+    method: 'POST',
+    headers: authHeaders(accessToken),
+    body: JSON.stringify({ slug, language, code, contestId }),
+  });
+  return data;
+}
+
+export async function getSubmissionsByProblem(slug, accessToken, options = {}) {
+  const { data } = await apiRequest(
+    `/api/submissions/problem/${encodeURIComponent(slug)}`,
+    {
+      method: 'GET',
+      headers: authHeaders(accessToken),
+      signal: options.signal,
+    }
+  );
+  return data?.submissions || [];
+}
+
+export async function getSubmissionById(id, accessToken) {
+  const { data } = await apiRequest(
+    `/api/submissions/${id}`,
+    {
+      method: 'GET',
+      headers: authHeaders(accessToken),
+    }
+  );
+  return data?.submission || data;
 }
 
 // --- Contests APIs ---
@@ -267,4 +337,132 @@ export async function getStatesByCountry(countryCode, options = {}) {
     }
   );
   return data.states || [];
+}
+
+// --- Admin Problems APIs ---
+
+export async function adminListProblems(accessToken, options = {}) {
+  const { data } = await apiRequest('/api/admin/problems', {
+    method: 'GET',
+    headers: authHeaders(accessToken),
+    signal: options.signal,
+  });
+  return data.problems || [];
+}
+
+export async function adminGetProblem(id, accessToken) {
+  const { data } = await apiRequest(`/api/admin/problems/${id}`, {
+    method: 'GET',
+    headers: authHeaders(accessToken),
+  });
+  return data.problem;
+}
+
+export async function adminCreateProblem(payload, accessToken) {
+  const { data } = await apiRequest('/api/admin/problems', {
+    method: 'POST',
+    headers: authHeaders(accessToken),
+    body: JSON.stringify(payload),
+  });
+  return data.problem;
+}
+
+export async function adminUpdateProblem(id, payload, accessToken) {
+  const { data } = await apiRequest(`/api/admin/problems/${id}`, {
+    method: 'PUT',
+    headers: authHeaders(accessToken),
+    body: JSON.stringify(payload),
+  });
+  return data.problem;
+}
+
+export async function adminDeleteProblem(id, accessToken) {
+  const { data } = await apiRequest(`/api/admin/problems/${id}`, {
+    method: 'DELETE',
+    headers: authHeaders(accessToken),
+  });
+  return data;
+}
+
+export async function adminGenerateOutput(payload, accessToken) {
+  const { data } = await apiRequest('/api/admin/problems/generate-output', {
+    method: 'POST',
+    headers: authHeaders(accessToken),
+    body: JSON.stringify(payload),
+  });
+  return data;
+}
+
+// --- Superuser APIs ---
+
+export async function superuserListUsers(search = '', accessToken) {
+  const qs = search ? `?search=${encodeURIComponent(search)}` : '';
+  const { data } = await apiRequest(`/api/admin/superuser/users${qs}`, {
+    method: 'GET',
+    headers: authHeaders(accessToken),
+  });
+  return data.users || [];
+}
+
+export async function superuserUpdateUserRole(userId, role, accessToken) {
+  const { data } = await apiRequest(`/api/admin/superuser/users/${userId}/role`, {
+    method: 'PATCH',
+    headers: authHeaders(accessToken),
+    body: JSON.stringify({ role }),
+  });
+  return data.user;
+}
+
+// --- Admin Contests APIs ---
+
+export async function adminListContests(accessToken) {
+  const { data } = await apiRequest('/api/admin/contests', {
+    method: 'GET',
+    headers: authHeaders(accessToken),
+  });
+  return data.contests || [];
+}
+
+export async function adminGetContest(id, accessToken) {
+  const { data } = await apiRequest(`/api/admin/contests/${id}`, {
+    method: 'GET',
+    headers: authHeaders(accessToken),
+  });
+  return data.contest;
+}
+
+export async function adminCreateContest(payload, accessToken) {
+  const { data } = await apiRequest('/api/admin/contests', {
+    method: 'POST',
+    headers: authHeaders(accessToken),
+    body: JSON.stringify(payload),
+  });
+  return data.contest;
+}
+
+export async function adminUpdateContest(id, payload, accessToken) {
+  const { data } = await apiRequest(`/api/admin/contests/${id}`, {
+    method: 'PUT',
+    headers: authHeaders(accessToken),
+    body: JSON.stringify(payload),
+  });
+  return data.contest;
+}
+
+export async function adminDeleteContest(id, accessToken) {
+  const { data } = await apiRequest(`/api/admin/contests/${id}`, {
+    method: 'DELETE',
+    headers: authHeaders(accessToken),
+  });
+  return data;
+}
+
+// --- Contest Leaderboard API ---
+
+export async function getContestLeaderboard(slug, options = {}) {
+  const { data } = await apiRequest(`/api/contests/${encodeURIComponent(slug)}/leaderboard`, {
+    method: 'GET',
+    signal: options.signal,
+  });
+  return data;
 }

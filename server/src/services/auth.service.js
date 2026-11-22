@@ -55,6 +55,7 @@ export async function createUser(username, email, passwordHash) {
       email: true,
       createdAt: true,
       updatedAt: true,
+      role: true,
     },
   });
 
@@ -207,6 +208,7 @@ export function getSafeUserResponse(user) {
     id: user.id,
     username: user.username,
     email: user.email,
+    role: user.role || 'USER',
     avatarUrl: user.avatarUrl || null,
     createdAt: user.createdAt,
   };

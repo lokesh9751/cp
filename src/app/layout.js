@@ -1,6 +1,5 @@
 import './globals.css';
-import Header from '@/components/Header';
-import Footer from '@/components/Footer';
+import AppShell from '@/components/AppShell';
 import { AuthProvider } from '@/context/AuthContext';
 
 export const metadata = {
@@ -11,13 +10,9 @@ export const metadata = {
 export default function RootLayout({ children }) {
   return (
     <html lang="en" className="h-full">
-      <body className="min-h-screen flex flex-col bg-bg-page text-text-primary">
+      <body className="min-h-screen bg-bg-page text-text-primary">
         <AuthProvider>
-          <Header />
-          <main className="flex-1 w-full max-w-container mx-auto px-4 py-8">
-            {children}
-          </main>
-          <Footer />
+          <AppShell>{children}</AppShell>
         </AuthProvider>
       </body>
     </html>

@@ -52,17 +52,17 @@ export async function getContests(userId = null) {
   // Get user-specific data if authenticated
   const userRegistrations = userId
     ? await prisma.contestRegistration.findMany({
-        where: { userId },
-        select: { contestId: true },
-      })
+      where: { userId },
+      select: { contestId: true },
+    })
     : [];
 
   const userReactionMap = userId
     ? new Map(
-        allReactions
-          .filter(r => r.userId === userId)
-          .map(r => [r.contestId, r.reaction])
-      )
+      allReactions
+        .filter(r => r.userId === userId)
+        .map(r => [r.contestId, r.reaction])
+    )
     : new Map();
 
   // Separate into ongoing and upcoming
@@ -113,11 +113,14 @@ export async function getContest(slug, userId = null) {
   const contest = await prisma.contest.findUnique({
     where: { slug },
     include: {
-      _count: {
-        select: {
-          registrations: true,
-          reactions: true,
+      contestProblems: {
+        orderBy: { order: 'asc' },
+        include: {
+          problem: { select: { id: true, slug: true, title: true, difficulty: true } },
         },
+      },
+      _count: {
+        select: { registrations: true, reactions: true },
       },
     },
   });
@@ -154,6 +157,35 @@ export async function getContest(slug, userId = null) {
     userReaction = userReactionRow ? userReactionRow.reaction : null;
   }
 
+  const now = new Date();
+  let solvedProblemIds = new Set();
+  let isStaff = false;
+  if (userId) {
+    const [u, acSubs] = await Promise.all([
+      prisma.user.findUnique({ where: { id: userId }, select: { role: true } }),
+      prisma.submission.findMany({
+        where: { userId, contestId: contest.id, status: 'ACCEPTED' },
+        select: { problemId: true },
+      }),
+    ]);
+    isStaff = u?.role === 'ADMIN' || u?.role === 'SUPERUSER';
+    solvedProblemIds = new Set(acSubs.map((s) => s.problemId));
+  }
+
+  const canViewProblems = now >= contest.startsAt || isStaff;
+  const problems = canViewProblems
+    ? contest.contestProblems.map((cp, idx) => ({
+      id: cp.problem.id,
+      slug: cp.problem.slug,
+      title: cp.problem.title,
+      difficulty: cp.problem.difficulty,
+      label: String.fromCharCode(65 + idx),
+      order: cp.order,
+      points: cp.points ?? 100,
+      solved: solvedProblemIds.has(cp.problemId),
+    }))
+    : [];
+
   return {
     id: contest.id,
     slug: contest.slug,
@@ -168,6 +200,7 @@ export async function getContest(slug, userId = null) {
     likesCount,
     dislikesCount,
     userReaction,
+    problems,
     serverTime: new Date(),
   };
 }

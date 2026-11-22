@@ -10,6 +10,7 @@ import locationsRoutes from './routes/locations.routes.js';
 import submissionsRoutes from './routes/submissions.routes.js';
 import { UPLOADS_ROOT } from './lib/avatarStorage.js';
 import { errorHandler } from './middleware/errorHandler.js';
+import adminRoutes from './routes/admin.routes.js';
 
 const app = express();
 
@@ -52,6 +53,7 @@ app.use('/api/contests', contestsRoutes);
 app.use('/api/profile', profileRoutes);
 app.use('/api/locations', locationsRoutes);
 app.use('/api/submissions', submissionsRoutes);
+app.use('/api/admin', adminRoutes);
 
 // Health check endpoint (database connectivity)
 app.get('/api/health', async (req, res) => {

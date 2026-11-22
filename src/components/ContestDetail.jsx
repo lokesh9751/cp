@@ -5,6 +5,8 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { getContestBySlug, registerForContest, reactToContest } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
+import MarkdownRenderer from '@/components/MarkdownRenderer';
+import ContestLeaderboard from '@/components/ContestLeaderboard';
 import {
   computeServerOffset,
   getAlignedNow,
@@ -21,7 +23,16 @@ function BackLink() {
       href="/contest"
       className="inline-flex items-center gap-1.5 text-small text-text-secondary hover:text-text-primary transition-colors mb-6 no-underline"
     >
-      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <svg
+        className="w-4 h-4"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden="true"
+      >
         <polyline points="15 18 9 12 15 6" />
       </svg>
       Back to Contests
@@ -32,25 +43,14 @@ function BackLink() {
 function ContestDescription({ description }) {
   if (!description) return null;
 
-  // Handle plain text / markdown-like string from DB
   if (typeof description === 'string') {
-    const paragraphs = description
-      .split(/\n{2,}/)
-      .map((p) => p.trim())
-      .filter(Boolean);
-
     return (
-      <div className="space-y-3 text-text-secondary mb-8">
-        {paragraphs.map((p, idx) => (
-          <p key={idx} className="text-body leading-relaxed whitespace-pre-line">
-            {p}
-          </p>
-        ))}
+      <div className="mb-8">
+        <MarkdownRenderer content={description} />
       </div>
     );
   }
 
-  // Handle structured object description if stored as JSON
   const sections = [
     { key: 'overview', label: 'Overview' },
     { key: 'format', label: 'Format' },
@@ -161,7 +161,6 @@ export default function ContestDetail({ slug }) {
     [slug, accessToken]
   );
 
-  // Fetch when auth ready, slug changes, or user/token changes
   useEffect(() => {
     if (authLoading) return;
     setRegisterError(null);
@@ -173,7 +172,6 @@ export default function ContestDetail({ slug }) {
     };
   }, [authLoading, slug, user?.id, accessToken, fetchContest]);
 
-  // Server-aligned countdown timer + boundary revalidation
   useEffect(() => {
     if (!contest) return;
 
@@ -384,8 +382,8 @@ export default function ContestDetail({ slug }) {
           <h1 className="text-section-title text-text-primary">{contest.title}</h1>
           <span
             className={`inline-flex items-center px-2.5 py-0.5 text-xs font-medium rounded-badge ${contest.type === 'DSA'
-              ? 'bg-info-bg text-info'
-              : 'bg-warning-bg text-warning'
+                ? 'bg-info-bg text-info'
+                : 'bg-warning-bg text-warning'
               }`}
           >
             {contest.type}
@@ -407,10 +405,10 @@ export default function ContestDetail({ slug }) {
         <div className="mt-4">
           <span
             className={`inline-flex items-center px-3 py-1 text-small font-medium rounded-lg font-mono ${lifecycle === 'upcoming'
-              ? 'bg-info-bg text-info'
-              : lifecycle === 'ongoing'
-                ? 'bg-warning-bg text-warning'
-                : 'bg-bg-section text-text-muted'
+                ? 'bg-info-bg text-info'
+                : lifecycle === 'ongoing'
+                  ? 'bg-warning-bg text-warning'
+                  : 'bg-bg-section text-text-muted'
               }`}
           >
             {lifecycle === 'upcoming' && `Upcoming · ${timeDisplay}`}
@@ -437,7 +435,16 @@ export default function ContestDetail({ slug }) {
 
         {lifecycle === 'upcoming' && isRegistered && (
           <span className="inline-flex items-center justify-center px-6 py-2.5 text-sm font-medium bg-success-bg text-success rounded-lg">
-            <svg className="w-4 h-4 mr-1.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <svg
+              className="w-4 h-4 mr-1.5"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
               <polyline points="20 6 9 17 4 12" />
             </svg>
             Registered
@@ -485,10 +492,55 @@ export default function ContestDetail({ slug }) {
             className="mt-3 p-3 bg-info-bg border border-border rounded-lg text-small text-info"
             role="status"
           >
-            The contest-solving page is not implemented yet.
+            Select a problem from the list below to open it in the IDE.
           </div>
         )}
       </div>
+
+      {/* Contest Problems List */}
+      {contest.problems && contest.problems.length > 0 && (
+        <div className="mb-8 space-y-3">
+          <h2 className="text-base font-semibold text-text-primary">Contest Problems</h2>
+          <div className="divide-y divide-border border border-border rounded-lg overflow-hidden">
+            {contest.problems.map((prob) => (
+              <div
+                key={prob.id}
+                className="p-3.5 bg-bg-section flex flex-wrap items-center justify-between gap-3"
+              >
+                <div className="flex items-center gap-3">
+                  <span className="w-7 h-7 rounded bg-navy text-white text-xs font-bold flex items-center justify-center">
+                    {prob.label}
+                  </span>
+                  <div>
+                    <Link
+                      href={`/problem/${prob.slug}?contestId=${contest.id}`}
+                      className="text-sm font-semibold text-text-primary hover:text-navy"
+                    >
+                      {prob.title}
+                    </Link>
+                    <p className="text-xs text-text-muted">
+                      {prob.difficulty} · {prob.points} pts
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  {prob.solved && (
+                    <span className="px-2 py-0.5 text-xs font-medium bg-success-bg text-success rounded">
+                      Solved
+                    </span>
+                  )}
+                  <Link
+                    href={`/problem/${prob.slug}?contestId=${contest.id}`}
+                    className="px-3 py-1.5 text-xs font-semibold bg-navy text-white rounded-md hover:bg-navy-hover no-underline"
+                  >
+                    {prob.solved ? 'View / Retry' : 'Solve'}
+                  </Link>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Reactions */}
       <div className="pt-5 border-t border-border">
@@ -502,11 +554,20 @@ export default function ContestDetail({ slug }) {
               aria-label="Like contest"
               aria-pressed={contest.userReaction === 'LIKE'}
               className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-small transition-colors ${contest.userReaction === 'LIKE'
-                ? 'border-info bg-info-bg text-info font-medium'
-                : 'border-border bg-transparent text-text-secondary hover:bg-bg-section hover:text-text-primary'
+                  ? 'border-info bg-info-bg text-info font-medium'
+                  : 'border-border bg-transparent text-text-secondary hover:bg-bg-section hover:text-text-primary'
                 }`}
             >
-              <svg className="w-4 h-4" viewBox="0 0 24 24" fill={contest.userReaction === 'LIKE' ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <svg
+                className="w-4 h-4"
+                viewBox="0 0 24 24"
+                fill={contest.userReaction === 'LIKE' ? 'currentColor' : 'none'}
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
                 <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3" />
               </svg>
               <span className="font-mono">{contest.likesCount ?? 0}</span>
@@ -519,11 +580,20 @@ export default function ContestDetail({ slug }) {
               aria-label="Dislike contest"
               aria-pressed={contest.userReaction === 'DISLIKE'}
               className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-small transition-colors ${contest.userReaction === 'DISLIKE'
-                ? 'border-error bg-error-bg text-error font-medium'
-                : 'border-border bg-transparent text-text-secondary hover:bg-bg-section hover:text-text-primary'
+                  ? 'border-error bg-error-bg text-error font-medium'
+                  : 'border-border bg-transparent text-text-secondary hover:bg-bg-section hover:text-text-primary'
                 }`}
             >
-              <svg className="w-4 h-4" viewBox="0 0 24 24" fill={contest.userReaction === 'DISLIKE' ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <svg
+                className="w-4 h-4"
+                viewBox="0 0 24 24"
+                fill={contest.userReaction === 'DISLIKE' ? 'currentColor' : 'none'}
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
                 <path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm7-13h2.67A2.31 2.31 0 0 1 22 4v7a2.31 2.31 0 0 1-2.33 2H17" />
               </svg>
               <span className="font-mono">{contest.dislikesCount ?? 0}</span>
@@ -536,6 +606,11 @@ export default function ContestDetail({ slug }) {
             {reactionError}
           </p>
         )}
+      </div>
+
+      {/* Live Contest Leaderboard */}
+      <div className="mt-8 pt-6 border-t border-border">
+        <ContestLeaderboard slug={contest.slug} />
       </div>
     </article>
   );

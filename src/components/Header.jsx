@@ -157,11 +157,10 @@ export default function Header() {
                     key={link.href}
                     href={link.href}
                     prefetch={link.prefetch}
-                    className={`text-small-lg font-medium transition-colors relative no-underline ${
-                      active
-                        ? 'text-text-primary'
-                        : 'text-text-secondary hover:text-text-primary'
-                    }`}
+                    className={`text-small-lg font-medium transition-colors relative no-underline ${active
+                      ? 'text-text-primary'
+                      : 'text-text-secondary hover:text-text-primary'
+                      }`}
                     aria-current={active ? 'page' : undefined}
                   >
                     {link.label}
@@ -284,6 +283,36 @@ export default function Header() {
                     >
                       Profile
                     </Link>
+                    {user.role === 'SUPERUSER' && (
+                      <Link
+                        href="/superuser"
+                        className="block w-full text-left px-4 py-2 text-sm font-medium text-gold hover:bg-bg-section transition-colors no-underline"
+                        role="menuitem"
+                        onClick={() => setUserMenuOpen(false)}
+                      >
+                        Access Superuser
+                      </Link>
+                    )}
+                    {(user.role === 'ADMIN' || user.role === 'SUPERUSER') && (
+                      <>
+                        <Link
+                          href="/admin/problems"
+                          className="block w-full text-left px-4 py-2 text-sm text-text-primary hover:bg-bg-section transition-colors no-underline"
+                          role="menuitem"
+                          onClick={() => setUserMenuOpen(false)}
+                        >
+                          Problem Studio
+                        </Link>
+                        <Link
+                          href="/admin/contests"
+                          className="block w-full text-left px-4 py-2 text-sm text-text-primary hover:bg-bg-section transition-colors no-underline"
+                          role="menuitem"
+                          onClick={() => setUserMenuOpen(false)}
+                        >
+                          Contest Studio
+                        </Link>
+                      </>
+                    )}
                     <button
                       type="button"
                       className="w-full text-left px-4 py-2 text-sm text-text-primary hover:bg-bg-section transition-colors"
@@ -325,11 +354,10 @@ export default function Header() {
                     key={link.href}
                     href={link.href}
                     prefetch={link.prefetch}
-                    className={`px-2 py-3 text-body-lg rounded-lg transition-colors no-underline ${
-                      active
-                        ? 'bg-bg-section text-text-primary font-medium'
-                        : 'text-text-secondary hover:text-text-primary hover:bg-bg-section'
-                    }`}
+                    className={`px-2 py-3 text-body-lg rounded-lg transition-colors no-underline ${active
+                      ? 'bg-bg-section text-text-primary font-medium'
+                      : 'text-text-secondary hover:text-text-primary hover:bg-bg-section'
+                      }`}
                     onClick={() => setMobileMenuOpen(false)}
                     aria-current={active ? 'page' : undefined}
                   >
