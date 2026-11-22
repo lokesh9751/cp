@@ -1,4 +1,19 @@
-export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+function normalizeApiBaseUrl(rawUrl) {
+  const fallback = 'http://localhost:4000';
+  let val = String(rawUrl || '').trim();
+  if (!val) return fallback;
+
+  // Fix accidental malformed scheme like "https:/example.com" -> "https://example.com"
+  val = val.replace(/^(https?):\/([^/])/i, '$1://$2');
+
+  if (!/^https?:\/\//i.test(val)) {
+    val = `https://${val}`;
+  }
+
+  return val.replace(/\/+$/, '');
+}
+
+export const API_BASE_URL = normalizeApiBaseUrl(process.env.NEXT_PUBLIC_API_URL);
 
 export function resolveAssetUrl(url) {
   if (!url) return null;
@@ -9,7 +24,8 @@ export function resolveAssetUrl(url) {
 }
 
 export async function apiRequest(endpoint, options = {}) {
-  const url = `${API_BASE_URL}${endpoint}`;
+  const cleanEndpoint = String(endpoint || '').startsWith('/') ? endpoint : `/${endpoint}`;
+  const url = `${API_BASE_URL}${cleanEndpoint}`;
   const { headers: customHeaders = {}, ...restOptions } = options;
 
   const isFormData =
@@ -166,7 +182,7 @@ export async function getProblems(paramsOrToken = {}, maybeTokenOrOptions = {}, 
   });
   return data;
 }
-  
+
 export async function getProblemBySlug(slug, accessToken = null, options = {}) {
   const { data } = await apiRequest(
     `/api/problems/${encodeURIComponent(slug)}`,
