@@ -456,6 +456,15 @@ export async function adminCreateContest(payload, accessToken) {
   return data.contest;
 }
 
+export async function adminCreateContestProblem(payload, accessToken) {
+  const { data } = await apiRequest('/api/admin/contests/problems', {
+    method: 'POST',
+    headers: authHeaders(accessToken),
+    body: JSON.stringify(payload),
+  });
+  return data.problem;
+}
+
 export async function adminUpdateContest(id, payload, accessToken) {
   const { data } = await apiRequest(`/api/admin/contests/${id}`, {
     method: 'PUT',
@@ -478,6 +487,23 @@ export async function adminDeleteContest(id, accessToken) {
 export async function getContestLeaderboard(slug, options = {}) {
   const { data } = await apiRequest(`/api/contests/${encodeURIComponent(slug)}/leaderboard`, {
     method: 'GET',
+    signal: options.signal,
+  });
+  return data;
+}
+
+export async function getGlobalLeaderboard(params = {}, accessToken = null, options = {}) {
+  const sp = new URLSearchParams();
+  if (params.search) sp.set('search', params.search);
+  if (params.league && params.league !== 'ALL') sp.set('league', params.league);
+  if (params.sortBy) sp.set('sortBy', params.sortBy);
+  if (params.page) sp.set('page', String(params.page));
+  if (params.limit) sp.set('limit', String(params.limit));
+
+  const qs = sp.toString() ? `?${sp.toString()}` : '';
+  const { data } = await apiRequest(`/api/leaderboard${qs}`, {
+    method: 'GET',
+    headers: authHeaders(accessToken),
     signal: options.signal,
   });
   return data;

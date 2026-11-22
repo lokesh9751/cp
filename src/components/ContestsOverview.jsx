@@ -13,18 +13,38 @@ import {
   subscribeContestsChanged,
 } from '@/lib/contestTime';
 
-function ContestCard({ contest, isUpcoming, serverOffset, onBoundaryCrossed }) {
+const DIVISION_LABELS = {
+  OPEN: 'Open',
+  DIV1: 'Div 1',
+  DIV2: 'Div 2',
+  DIV3: 'Div 3',
+};
+
+const DIVISION_FILTERS = [
+  { key: 'ALL', label: 'All Divisions' },
+  { key: 'DIV1', label: 'Div 1' },
+  { key: 'DIV2', label: 'Div 2' },
+  { key: 'DIV3', label: 'Div 3' },
+  { key: 'OPEN', label: 'Open' },
+];
+
+function ContestCard({ contest, mode, serverOffset, onBoundaryCrossed }) {
   const [statusText, setStatusText] = useState('');
   const boundaryTriggeredRef = useRef(false);
 
   useEffect(() => {
+    if (mode === 'past') {
+      setStatusText('Ended');
+      return;
+    }
+
     boundaryTriggeredRef.current = false;
 
     const update = () => {
       const now = getAlignedNow(serverOffset);
       const life = getLifecycle(contest.startsAt, contest.endsAt, now);
 
-      if (isUpcoming) {
+      if (mode === 'upcoming') {
         if (life === 'upcoming') {
           setStatusText(`Starts in: ${formatCountdownMs(contest.startsAt, now)}`);
         } else if (!boundaryTriggeredRef.current) {
@@ -46,7 +66,7 @@ function ContestCard({ contest, isUpcoming, serverOffset, onBoundaryCrossed }) {
     update();
     const interval = setInterval(update, 1000);
     return () => clearInterval(interval);
-  }, [contest.startsAt, contest.endsAt, isUpcoming, serverOffset, onBoundaryCrossed]);
+  }, [contest.startsAt, contest.endsAt, mode, serverOffset, onBoundaryCrossed]);
 
   const isRegistered = Boolean(contest.isRegistered);
 
@@ -61,14 +81,20 @@ function ContestCard({ contest, isUpcoming, serverOffset, onBoundaryCrossed }) {
             {contest.title}
           </Link>
         </h3>
-        <span
-          className={`inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-badge shrink-0 ${contest.type === 'DSA'
-              ? 'bg-info-bg text-info'
-              : 'bg-warning-bg text-warning'
+        <div className="flex items-center gap-1.5 shrink-0">
+          <span className="inline-flex items-center px-2 py-0.5 text-xs font-semibold rounded-badge bg-bg-section border border-border text-text-primary">
+            {DIVISION_LABELS[contest.division] || 'Open'}
+          </span>
+          <span
+            className={`inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-badge ${
+              contest.type === 'DSA'
+                ? 'bg-info-bg text-info'
+                : 'bg-warning-bg text-warning'
             }`}
-        >
-          {contest.type}
-        </span>
+          >
+            {contest.type}
+          </span>
+        </div>
       </div>
 
       <div className="text-small text-text-secondary space-y-1.5 mb-4">
@@ -80,7 +106,7 @@ function ContestCard({ contest, isUpcoming, serverOffset, onBoundaryCrossed }) {
             <line x1="3" y1="10" x2="21" y2="10" />
           </svg>
           <span>
-            {isUpcoming ? 'Starts: ' : 'Started: '}
+            {mode === 'upcoming' ? 'Starts: ' : mode === 'ongoing' ? 'Started: ' : 'Held: '}
             {formatISTDateTime(contest.startsAt)}
           </span>
         </div>
@@ -93,10 +119,13 @@ function ContestCard({ contest, isUpcoming, serverOffset, onBoundaryCrossed }) {
             {statusText || '—'}
           </span>
         </div>
+        <div className="text-xs text-text-muted pt-0.5">
+          {contest.problemCount ?? 0} problems · {contest.participantCount ?? 0} participants · {contest.durationMinutes}m
+        </div>
       </div>
 
       <div className="mt-auto pt-3 border-t border-border">
-        {isUpcoming ? (
+        {mode === 'upcoming' ? (
           isRegistered ? (
             <Link
               href={`/contest/${contest.slug}`}
@@ -115,12 +144,19 @@ function ContestCard({ contest, isUpcoming, serverOffset, onBoundaryCrossed }) {
               Register
             </Link>
           )
+        ) : mode === 'ongoing' ? (
+          <Link
+            href={`/contest/${contest.slug}`}
+            className="inline-flex items-center justify-center w-full px-4 py-2 text-sm font-semibold bg-success text-white hover:opacity-90 rounded-lg transition-colors no-underline"
+          >
+            {isRegistered ? 'Enter Arena' : 'Join Live Contest'}
+          </Link>
         ) : (
           <Link
             href={`/contest/${contest.slug}`}
-            className="inline-flex items-center justify-center w-full px-4 py-2 text-sm font-medium bg-navy text-white hover:bg-navy-hover hover:text-white rounded-lg transition-colors no-underline"
+            className="inline-flex items-center justify-center w-full px-4 py-2 text-sm font-medium bg-bg-section border border-border text-text-primary hover:bg-bg-raised rounded-lg transition-colors no-underline"
           >
-            {isRegistered ? 'Solve' : 'View Contest'}
+            View Standings & Upsolve
           </Link>
         )}
       </div>
@@ -128,7 +164,7 @@ function ContestCard({ contest, isUpcoming, serverOffset, onBoundaryCrossed }) {
   );
 }
 
-function ContestSection({ title, contests, isUpcoming, serverOffset, onBoundaryCrossed }) {
+function ContestSection({ title, contests, mode, serverOffset, onBoundaryCrossed }) {
   const sectionId = title.toLowerCase().replace(/\s+/g, '-');
 
   return (
@@ -155,7 +191,7 @@ function ContestSection({ title, contests, isUpcoming, serverOffset, onBoundaryC
             <ContestCard
               key={contest.slug}
               contest={contest}
-              isUpcoming={isUpcoming}
+              mode={mode}
               serverOffset={serverOffset}
               onBoundaryCrossed={onBoundaryCrossed}
             />
@@ -170,6 +206,8 @@ export default function ContestsOverview() {
   const { user, accessToken, isLoading: authLoading } = useAuth();
   const [ongoing, setOngoing] = useState([]);
   const [upcoming, setUpcoming] = useState([]);
+  const [past, setPast] = useState([]);
+  const [divisionFilter, setDivisionFilter] = useState('ALL');
   const [serverOffset, setServerOffset] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -191,6 +229,7 @@ export default function ContestsOverview() {
         if (reqId !== requestIdRef.current) return;
         setOngoing(data.ongoing || []);
         setUpcoming(data.upcoming || []);
+        setPast(data.past || []);
         setServerOffset(computeServerOffset(data.serverTime));
       } catch (err) {
         if (err?.name === 'AbortError' || reqId !== requestIdRef.current) return;
@@ -229,6 +268,11 @@ export default function ContestsOverview() {
     fetchAllContests({ silent: true });
   }, [fetchAllContests]);
 
+  const filterByDivision = (list) =>
+    divisionFilter === 'ALL'
+      ? list
+      : list.filter((c) => (c.division || 'OPEN') === divisionFilter);
+
   if (loading) {
     return (
       <div className="space-y-10 animate-pulse">
@@ -266,17 +310,41 @@ export default function ContestsOverview() {
 
   return (
     <>
+      <div className="flex flex-wrap items-center gap-2 mb-8">
+        {DIVISION_FILTERS.map((f) => (
+          <button
+            key={f.key}
+            type="button"
+            onClick={() => setDivisionFilter(f.key)}
+            className={`px-3.5 py-1.5 text-xs font-semibold rounded-full border transition-colors ${
+              divisionFilter === f.key
+                ? 'bg-navy text-white border-navy'
+                : 'bg-bg-card text-text-secondary border-border hover:bg-bg-section hover:text-text-primary'
+            }`}
+          >
+            {f.label}
+          </button>
+        ))}
+      </div>
+
       <ContestSection
         title="Ongoing contests"
-        contests={ongoing}
-        isUpcoming={false}
+        contests={filterByDivision(ongoing)}
+        mode="ongoing"
         serverOffset={serverOffset}
         onBoundaryCrossed={handleBoundaryCrossed}
       />
       <ContestSection
         title="Upcoming contests"
-        contests={upcoming}
-        isUpcoming={true}
+        contests={filterByDivision(upcoming)}
+        mode="upcoming"
+        serverOffset={serverOffset}
+        onBoundaryCrossed={handleBoundaryCrossed}
+      />
+      <ContestSection
+        title="Past contests"
+        contests={filterByDivision(past)}
+        mode="past"
         serverOffset={serverOffset}
         onBoundaryCrossed={handleBoundaryCrossed}
       />

@@ -1,114 +1,81 @@
 import { prisma } from '../lib/prisma.js';
-import { ProblemType, ReactionType } from '../constants/enums.js';
+import { ReactionType } from '../constants/enums.js';
 
-/**
- * Get all contests (ongoing and upcoming only)
- * @param {string} userId - Optional user ID for personalized data
- * @returns {Promise<{ongoing: [], upcoming: [], serverTime: Date}>}
- */
 export async function getContests(userId = null) {
   const now = new Date();
 
-  // Get all upcoming and ongoing contests
-  const contests = await prisma.contest.findMany({
-    where: {
-      OR: [
-        { startsAt: { gt: now } }, // Upcoming
-        {
-          AND: [
-            { startsAt: { lte: now } },
-            { endsAt: { gt: now } },
-          ],
-        },
-      ],
-    },
-    orderBy: [
-      { startsAt: 'asc' },
-      { id: 'asc' },
-    ],
-  });
+  const [activeContests, pastContests] = await Promise.all([
+    prisma.contest.findMany({
+      where: { endsAt: { gt: now } },
+      orderBy: [{ startsAt: 'asc' }, { id: 'asc' }],
+      include: { _count: { select: { registrations: true, contestProblems: true } } },
+    }),
+    prisma.contest.findMany({
+      where: { endsAt: { lte: now } },
+      orderBy: [{ endsAt: 'desc' }],
+      take: 15,
+      include: { _count: { select: { registrations: true, contestProblems: true } } },
+    }),
+  ]);
 
-  // Get reactions for all contests in one query
-  const allReactions = await prisma.contestReaction.findMany({
-    where: {
-      contestId: { in: contests.map(c => c.id) },
-    },
-    select: {
-      contestId: true,
-      reaction: true,
-      userId: true,
-    },
-  });
+  const contests = [...activeContests, ...pastContests];
+  const contestIds = contests.map((c) => c.id);
 
-  // Group reactions by contest
+  const [allReactions, userRegistrations] = await Promise.all([
+    prisma.contestReaction.findMany({
+      where: { contestId: { in: contestIds } },
+      select: { contestId: true, reaction: true, userId: true },
+    }),
+    userId
+      ? prisma.contestRegistration.findMany({
+        where: { userId, contestId: { in: contestIds } },
+        select: { contestId: true },
+      })
+      : Promise.resolve([]),
+  ]);
+
   const reactionsByContest = new Map();
-  allReactions.forEach(r => {
-    if (!reactionsByContest.has(r.contestId)) {
-      reactionsByContest.set(r.contestId, []);
-    }
+  for (const r of allReactions) {
+    if (!reactionsByContest.has(r.contestId)) reactionsByContest.set(r.contestId, []);
     reactionsByContest.get(r.contestId).push(r);
-  });
+  }
 
-  // Get user-specific data if authenticated
-  const userRegistrations = userId
-    ? await prisma.contestRegistration.findMany({
-      where: { userId },
-      select: { contestId: true },
-    })
-    : [];
+  const registeredSet = new Set(userRegistrations.map((r) => r.contestId));
 
-  const userReactionMap = userId
-    ? new Map(
-      allReactions
-        .filter(r => r.userId === userId)
-        .map(r => [r.contestId, r.reaction])
-    )
-    : new Map();
-
-  // Separate into ongoing and upcoming
   const ongoing = [];
   const upcoming = [];
+  const past = [];
 
   for (const contest of contests) {
     const reactions = reactionsByContest.get(contest.id) || [];
-    const likesCount = reactions.filter(r => r.reaction === 'LIKE').length;
-    const dislikesCount = reactions.filter(r => r.reaction === 'DISLIKE').length;
-    const isRegistered = userRegistrations.some(r => r.contestId === contest.id);
-    const userReaction = userId ? userReactionMap.get(contest.id) || null : null;
-
     const dto = {
       id: contest.id,
       slug: contest.slug,
       title: contest.title,
       type: contest.type,
+      division: contest.division,
       startsAt: contest.startsAt,
       endsAt: contest.endsAt,
       durationMinutes: contest.durationMinutes,
-      isRegistered,
-      likesCount,
-      dislikesCount,
+      participantCount: contest._count.registrations,
+      problemCount: contest._count.contestProblems,
+      isRegistered: registeredSet.has(contest.id),
+      likesCount: reactions.filter((r) => r.reaction === 'LIKE').length,
+      dislikesCount: reactions.filter((r) => r.reaction === 'DISLIKE').length,
     };
 
-    if (contest.startsAt <= now && contest.endsAt > now) {
+    if (contest.endsAt <= now) {
+      past.push(dto);
+    } else if (contest.startsAt <= now) {
       ongoing.push(dto);
     } else {
       upcoming.push(dto);
     }
   }
 
-  return {
-    ongoing,
-    upcoming,
-    serverTime: now,
-  };
+  return { ongoing, upcoming, past, serverTime: now };
 }
 
-/**
- * Get a single contest by slug
- * @param {string} slug - Contest slug
- * @param {string} userId - Optional user ID for personalized data
- * @returns {Promise<object|null>}
- */
 export async function getContest(slug, userId = null) {
   const contest = await prisma.contest.findUnique({
     where: { slug },
@@ -120,70 +87,90 @@ export async function getContest(slug, userId = null) {
         },
       },
       _count: {
-        select: { registrations: true, reactions: true },
+        select: { registrations: true, reactions: true, submissions: true },
       },
     },
   });
 
-  if (!contest) {
-    return null;
-  }
+  if (!contest) return null;
 
-  // Get reactions for this contest
   const reactions = await prisma.contestReaction.findMany({
     where: { contestId: contest.id },
     select: { reaction: true, userId: true },
   });
 
-  const likesCount = reactions.filter(r => r.reaction === 'LIKE').length;
-  const dislikesCount = reactions.filter(r => r.reaction === 'DISLIKE').length;
+  const likesCount = reactions.filter((r) => r.reaction === 'LIKE').length;
+  const dislikesCount = reactions.filter((r) => r.reaction === 'DISLIKE').length;
 
-  // Get user-specific data if authenticated
   let isRegistered = false;
   let userReaction = null;
+  let isStaff = false;
+  const userProblemStats = new Map();
 
   if (userId) {
-    const userRegistration = await prisma.contestRegistration.findUnique({
-      where: {
-        userId_contestId: {
-          userId,
-          contestId: contest.id,
-        },
-      },
-    });
-    isRegistered = !!userRegistration;
+    const [reg, userRow, userSubs] = await Promise.all([
+      prisma.contestRegistration.findUnique({
+        where: { userId_contestId: { userId, contestId: contest.id } },
+      }),
+      prisma.user.findUnique({ where: { id: userId }, select: { role: true } }),
+      prisma.submission.findMany({
+        where: { userId, contestId: contest.id },
+        orderBy: { createdAt: 'asc' },
+        select: { problemId: true, status: true, createdAt: true },
+      }),
+    ]);
 
-    const userReactionRow = reactions.find(r => r.userId === userId);
-    userReaction = userReactionRow ? userReactionRow.reaction : null;
+    isRegistered = !!reg;
+    isStaff = userRow?.role === 'ADMIN' || userRow?.role === 'SUPERUSER';
+    const rRow = reactions.find((r) => r.userId === userId);
+    userReaction = rRow ? rRow.reaction : null;
+
+    const startMs = new Date(contest.startsAt).getTime();
+    for (const sub of userSubs) {
+      if (!userProblemStats.has(sub.problemId)) {
+        userProblemStats.set(sub.problemId, { solved: false, wrongAttempts: 0, solveTimeSeconds: null });
+      }
+      const stat = userProblemStats.get(sub.problemId);
+      if (stat.solved) continue;
+      if (sub.status === 'ACCEPTED') {
+        stat.solved = true;
+        stat.solveTimeSeconds = Math.max(0, Math.floor((new Date(sub.createdAt).getTime() - startMs) / 1000));
+      } else if (sub.status !== 'PENDING' && sub.status !== 'RUNNING') {
+        stat.wrongAttempts += 1;
+      }
+    }
   }
 
   const now = new Date();
-  let solvedProblemIds = new Set();
-  let isStaff = false;
-  if (userId) {
-    const [u, acSubs] = await Promise.all([
-      prisma.user.findUnique({ where: { id: userId }, select: { role: true } }),
-      prisma.submission.findMany({
-        where: { userId, contestId: contest.id, status: 'ACCEPTED' },
-        select: { problemId: true },
-      }),
-    ]);
-    isStaff = u?.role === 'ADMIN' || u?.role === 'SUPERUSER';
-    solvedProblemIds = new Set(acSubs.map((s) => s.problemId));
-  }
+  const isUpcoming = now < contest.startsAt;
+  const isOngoing = now >= contest.startsAt && now < contest.endsAt;
+  const isEnded = now >= contest.endsAt;
 
-  const canViewProblems = now >= contest.startsAt || isStaff;
+  // Upcoming: ALWAYS hidden on public contest page (admins edit in /admin/contests)
+  // Ongoing: visible if registered OR if it's an OPEN division contest
+  // Ended: visible to everyone for upsolving
+  const canViewProblems =
+    !isUpcoming && (isEnded || (isOngoing && (isRegistered || contest.division === 'OPEN')));
   const problems = canViewProblems
-    ? contest.contestProblems.map((cp, idx) => ({
-      id: cp.problem.id,
-      slug: cp.problem.slug,
-      title: cp.problem.title,
-      difficulty: cp.problem.difficulty,
-      label: String.fromCharCode(65 + idx),
-      order: cp.order,
-      points: cp.points ?? 100,
-      solved: solvedProblemIds.has(cp.problemId),
-    }))
+    ? contest.contestProblems.map((cp, idx) => {
+      const st = userProblemStats.get(cp.problemId) || {
+        solved: false,
+        wrongAttempts: 0,
+        solveTimeSeconds: null,
+      };
+      return {
+        id: cp.problem.id,
+        slug: cp.problem.slug,
+        title: cp.problem.title,
+        difficulty: cp.problem.difficulty,
+        label: String.fromCharCode(65 + idx),
+        order: cp.order,
+        points: cp.points ?? 100,
+        solved: st.solved,
+        wrongAttempts: st.wrongAttempts,
+        solveTimeSeconds: st.solveTimeSeconds,
+      };
+    })
     : [];
 
   return {
@@ -191,144 +178,90 @@ export async function getContest(slug, userId = null) {
     slug: contest.slug,
     title: contest.title,
     type: contest.type,
+    division: contest.division,
     description: contest.description,
     uploadedAt: contest.uploadedAt,
     startsAt: contest.startsAt,
     endsAt: contest.endsAt,
     durationMinutes: contest.durationMinutes,
+    participantCount: contest._count.registrations,
+    submissionCount: contest._count.submissions,
     isRegistered,
     likesCount,
     dislikesCount,
     userReaction,
     problems,
-    serverTime: new Date(),
+    serverTime: now,
   };
 }
 
-/**
- * Register for a contest
- * @param {string} userId - User ID
- * @param {string} slug - Contest slug
- * @returns {Promise<{slug: string, isRegistered: boolean}|null|{closed: boolean}>}
- */
 export async function registerForContest(userId, slug) {
   const contest = await prisma.contest.findUnique({
     where: { slug },
-    select: { id: true, startsAt: true },
+    select: { id: true, endsAt: true },
   });
 
-  if (!contest) {
-    return null;
-  }
+  if (!contest) return null;
 
   const now = new Date();
-  if (now >= contest.startsAt) {
+  // Allow registration during upcoming AND ongoing contest; close only after contest ends
+  if (now >= contest.endsAt) {
     return { closed: true };
   }
 
-  // Upsert registration
-  const registration = await prisma.contestRegistration.upsert({
-    where: {
-      userId_contestId: {
-        userId,
-        contestId: contest.id,
-      },
-    },
-    update: {}, // Keep original registeredAt
-    create: {
-      userId,
-      contestId: contest.id,
-    },
+  await prisma.contestRegistration.upsert({
+    where: { userId_contestId: { userId, contestId: contest.id } },
+    update: {},
+    create: { userId, contestId: contest.id },
   });
 
   return { slug, isRegistered: true };
 }
 
-/**
- * Toggle contest reaction (like/dislike)
- * @param {string} userId - User ID
- * @param {string} slug - Contest slug
- * @param {string} reaction - 'LIKE' or 'DISLIKE'
- * @returns {Promise<object>}
- */
 export async function toggleContestReaction(userId, slug, reaction) {
   const contest = await prisma.contest.findUnique({
     where: { slug },
     select: { id: true },
   });
 
-  if (!contest) {
-    return null;
-  }
+  if (!contest) return null;
 
   const reactionType = reaction === 'LIKE' ? ReactionType.LIKE : ReactionType.DISLIKE;
-
   let likesCount = 0;
   let dislikesCount = 0;
   let userReaction = null;
 
   await prisma.$transaction(async (tx) => {
-    // Find existing reaction
-    const existingReaction = await tx.contestReaction.findUnique({
-      where: {
-        userId_contestId: {
-          userId,
-          contestId: contest.id,
-        },
-      },
+    const existing = await tx.contestReaction.findUnique({
+      where: { userId_contestId: { userId, contestId: contest.id } },
     });
 
-    if (existingReaction) {
-      if (existingReaction.reaction === reactionType) {
-        // Same reaction -> delete
-        await tx.contestReaction.delete({
-          where: {
-            userId_contestId: {
-              userId,
-              contestId: contest.id,
-            },
-          },
-        });
+    if (existing) {
+      if (existing.reaction === reactionType) {
+        await tx.contestReaction.delete({ where: { userId_contestId: { userId, contestId: contest.id } } });
         userReaction = null;
       } else {
-        // Different reaction -> update
         await tx.contestReaction.update({
-          where: {
-            userId_contestId: {
-              userId,
-              contestId: contest.id,
-            },
-          },
+          where: { userId_contestId: { userId, contestId: contest.id } },
           data: { reaction: reactionType },
         });
         userReaction = reactionType;
       }
     } else {
-      // No existing reaction -> create
       await tx.contestReaction.create({
-        data: {
-          userId,
-          contestId: contest.id,
-          reaction: reactionType,
-        },
+        data: { userId, contestId: contest.id, reaction: reactionType },
       });
       userReaction = reactionType;
     }
 
-    // Get actual counts
     const reactions = await tx.contestReaction.findMany({
       where: { contestId: contest.id },
       select: { reaction: true },
     });
 
-    likesCount = reactions.filter(r => r.reaction === 'LIKE').length;
-    dislikesCount = reactions.filter(r => r.reaction === 'DISLIKE').length;
+    likesCount = reactions.filter((r) => r.reaction === 'LIKE').length;
+    dislikesCount = reactions.filter((r) => r.reaction === 'DISLIKE').length;
   });
 
-  return {
-    slug,
-    likesCount,
-    dislikesCount,
-    userReaction,
-  };
+  return { slug, likesCount, dislikesCount, userReaction };
 }

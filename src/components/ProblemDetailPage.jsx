@@ -87,8 +87,16 @@ function renderInlineMarkdown(text) {
 }
 
 function MarkdownBlock({ content }) {
-  if (!content) return null;
-  const blocks = content.trim().split(/\n{2,}/);
+  if (content == null) return null;
+
+  const text = Array.isArray(content)
+    ? content.map((item) => (typeof item === 'string' ? item : JSON.stringify(item))).join('\n')
+    : typeof content === 'string'
+      ? content
+      : String(content);
+
+  if (!text.trim()) return null;
+  const blocks = text.trim().split(/\n{2,}/);
 
   return (
     <div className="space-y-3 text-sm text-text-secondary leading-relaxed">
@@ -541,8 +549,8 @@ export default function ProblemDetailPage({ slug }) {
                 type="button"
                 onClick={() => setLeftTab('description')}
                 className={`px-3 py-2.5 text-xs font-semibold border-b-2 transition-colors ${leftTab === 'description'
-                    ? 'border-navy text-text-primary'
-                    : 'border-transparent text-text-muted hover:text-text-primary'
+                  ? 'border-navy text-text-primary'
+                  : 'border-transparent text-text-muted hover:text-text-primary'
                   }`}
               >
                 Description
@@ -551,8 +559,8 @@ export default function ProblemDetailPage({ slug }) {
                 type="button"
                 onClick={() => setLeftTab('submissions')}
                 className={`px-3 py-2.5 text-xs font-semibold border-b-2 transition-colors ${leftTab === 'submissions'
-                    ? 'border-navy text-text-primary'
-                    : 'border-transparent text-text-muted hover:text-text-primary'
+                  ? 'border-navy text-text-primary'
+                  : 'border-transparent text-text-muted hover:text-text-primary'
                   }`}
               >
                 Submissions
@@ -564,8 +572,8 @@ export default function ProblemDetailPage({ slug }) {
               onClick={handleToggleBookmark}
               disabled={bookmarkPending}
               className={`p-1.5 rounded transition-colors ${isBookmarked
-                  ? 'text-gold hover:bg-bg-card'
-                  : 'text-text-muted hover:text-text-primary hover:bg-bg-card'
+                ? 'text-gold hover:bg-bg-card'
+                : 'text-text-muted hover:text-text-primary hover:bg-bg-card'
                 }`}
               title={isBookmarked ? 'Remove bookmark' : 'Bookmark problem'}
               aria-label={isBookmarked ? 'Remove bookmark' : 'Add bookmark'}
@@ -690,8 +698,8 @@ export default function ProblemDetailPage({ slug }) {
                               setSelectedSubmission(isSelected ? null : sub)
                             }
                             className={`w-full text-left p-3 rounded-md border transition-colors ${isSelected
-                                ? 'bg-bg-raised border-navy'
-                                : 'bg-bg-section border-border hover:border-border-strong'
+                              ? 'bg-bg-raised border-navy'
+                              : 'bg-bg-section border-border hover:border-border-strong'
                               }`}
                           >
                             <div className="flex items-center justify-between gap-2 mb-1">
@@ -847,8 +855,8 @@ export default function ProblemDetailPage({ slug }) {
               type="button"
               onClick={() => setRightTab('testcase')}
               className={`px-3 py-2.5 text-xs font-semibold border-b-2 transition-colors ${rightTab === 'testcase'
-                  ? 'border-navy text-text-primary'
-                  : 'border-transparent text-text-muted hover:text-text-primary'
+                ? 'border-navy text-text-primary'
+                : 'border-transparent text-text-muted hover:text-text-primary'
                 }`}
             >
               Testcase
@@ -857,8 +865,8 @@ export default function ProblemDetailPage({ slug }) {
               type="button"
               onClick={() => setRightTab('result')}
               className={`px-3 py-2.5 text-xs font-semibold border-b-2 transition-colors flex items-center gap-1.5 ${rightTab === 'result'
-                  ? 'border-navy text-text-primary'
-                  : 'border-transparent text-text-muted hover:text-text-primary'
+                ? 'border-navy text-text-primary'
+                : 'border-transparent text-text-muted hover:text-text-primary'
                 }`}
             >
               <span>Test Result</span>
@@ -878,8 +886,8 @@ export default function ProblemDetailPage({ slug }) {
                       type="button"
                       onClick={() => setActiveCaseTab(idx)}
                       className={`px-2.5 py-1 text-xs font-medium rounded transition-colors ${activeCaseTab === idx
-                          ? 'bg-navy text-white'
-                          : 'bg-bg-section text-text-secondary hover:text-text-primary border border-border'
+                        ? 'bg-navy text-white'
+                        : 'bg-bg-section text-text-secondary hover:text-text-primary border border-border'
                         }`}
                     >
                       Case {tc.order ?? idx + 1}
@@ -889,8 +897,8 @@ export default function ProblemDetailPage({ slug }) {
                     type="button"
                     onClick={() => setActiveCaseTab('custom')}
                     className={`px-2.5 py-1 text-xs font-medium rounded transition-colors ${activeCaseTab === 'custom'
-                        ? 'bg-navy text-white'
-                        : 'bg-bg-section text-text-secondary hover:text-text-primary border border-border'
+                      ? 'bg-navy text-white'
+                      : 'bg-bg-section text-text-secondary hover:text-text-primary border border-border'
                       }`}
                   >
                     + Custom
@@ -1011,8 +1019,8 @@ export default function ProblemDetailPage({ slug }) {
                                 type="button"
                                 onClick={() => setSelectedResultCase(idx)}
                                 className={`px-2.5 py-1 text-xs font-medium rounded flex items-center gap-1.5 border transition-colors ${selectedResultCase === idx
-                                    ? 'bg-bg-raised border-navy text-text-primary'
-                                    : 'bg-bg-section border-border text-text-secondary'
+                                  ? 'bg-bg-raised border-navy text-text-primary'
+                                  : 'bg-bg-section border-border text-text-secondary'
                                   }`}
                               >
                                 <span

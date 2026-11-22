@@ -40,6 +40,13 @@ enum ReactionType {
   DISLIKE
 }
 
+enum ContestDivision {
+  OPEN
+  DIV1
+  DIV2
+  DIV3
+}
+
 model User {
   id                  String    @id @default(cuid())
   username            String    @unique
@@ -96,6 +103,7 @@ model Problem {
   timeLimitMs   Int        @default(2000)
   memoryLimitKb Int        @default(262144)
   acceptanceRate Float     @default(0)
+  isPublic       Boolean    @default(true)
   createdAt     DateTime   @default(now())
   updatedAt     DateTime   @default(now()) @updatedAt
 
@@ -154,6 +162,7 @@ model Contest {
   slug         String   @unique
   title        String
   type         ProblemType
+  division       ContestDivision @default(OPEN)
   description  String?
   uploadedAt   DateTime @default(now())
   startsAt     DateTime
@@ -227,4 +236,5 @@ model Submission {
 
   @@index([userId])
   @@index([problemId])
+  @@index([contestId, problemId, createdAt])
 }

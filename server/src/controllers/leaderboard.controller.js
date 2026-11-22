@@ -12,17 +12,38 @@ export async function computeContestLeaderboard(slug) {
           problem: { select: { id: true, slug: true, title: true, difficulty: true } },
         },
       },
+      _count: { select: { registrations: true } },
     },
   });
 
   if (!contest) return null;
+
+  if (!contest) return null;
+
+  // Hide problem titles/analytics & standings before contest starts
+  if (new Date() < new Date(contest.startsAt)) {
+    return {
+      contestId: contest.id,
+      slug: contest.slug,
+      title: contest.title,
+      division: contest.division,
+      participantCount: contest._count.registrations,
+      startsAt: contest.startsAt,
+      endsAt: contest.endsAt,
+      locked: true,
+      problems: [],
+      problemAnalytics: [],
+      standings: [],
+      updatedAt: new Date().toISOString(),
+    };
+  }
 
   const problemMeta = contest.contestProblems.map((cp, idx) => ({
     problemId: cp.problemId,
     slug: cp.problem.slug,
     title: cp.problem.title,
     difficulty: cp.problem.difficulty,
-    label: String.fromCharCode(65 + idx), // A, B, C...
+    label: String.fromCharCode(65 + idx),
     order: cp.order,
     points: cp.points ?? 100,
   }));
@@ -43,8 +64,22 @@ export async function computeContestLeaderboard(slug) {
 
   const startMs = new Date(contest.startsAt).getTime();
   const byUser = new Map();
+  const problemTracking = new Map(
+    problemMeta.map((pm) => [
+      pm.problemId,
+      {
+        totalAttempts: 0,
+        solvers: [], // { userId, username, solveTimeSeconds, runtimeMs, language }
+      },
+    ])
+  );
 
   for (const sub of submissions) {
+    const tracker = problemTracking.get(sub.problemId);
+    if (tracker && sub.status !== 'PENDING' && sub.status !== 'RUNNING') {
+      tracker.totalAttempts += 1;
+    }
+
     if (!byUser.has(sub.userId)) {
       byUser.set(sub.userId, {
         userId: sub.userId,
@@ -63,6 +98,7 @@ export async function computeContestLeaderboard(slug) {
       entry.problemStats[sub.problemId] = {
         problemId: sub.problemId,
         solved: false,
+        isFirstBlood: false,
         wrongAttempts: 0,
         solveTimeSeconds: null,
         language: null,
@@ -72,12 +108,15 @@ export async function computeContestLeaderboard(slug) {
     }
 
     const pStat = entry.problemStats[sub.problemId];
-    if (pStat.solved) continue; // already accepted
+    if (pStat.solved) continue;
 
     if (sub.status === 'ACCEPTED') {
       const elapsedSec = Math.max(0, Math.floor((new Date(sub.createdAt).getTime() - startMs) / 1000));
       const pts = pointsByProblem.get(sub.problemId) ?? 100;
+      const isFirstBlood = tracker ? tracker.solvers.length === 0 : false;
+
       pStat.solved = true;
+      pStat.isFirstBlood = isFirstBlood;
       pStat.solveTimeSeconds = elapsedSec;
       pStat.language = sub.language;
       pStat.runtimeMs = sub.runtimeMs;
@@ -87,10 +126,43 @@ export async function computeContestLeaderboard(slug) {
       entry.totalPoints += pts;
       entry.totalTimeSeconds += elapsedSec + pStat.wrongAttempts * WRONG_PENALTY_SECONDS;
       entry.lastAcceptedAt = sub.createdAt;
+
+      if (tracker) {
+        tracker.solvers.push({
+          userId: sub.userId,
+          username: sub.user.username,
+          solveTimeSeconds: elapsedSec,
+          runtimeMs: sub.runtimeMs,
+          language: sub.language,
+        });
+      }
     } else if (sub.status !== 'PENDING' && sub.status !== 'RUNNING') {
       pStat.wrongAttempts += 1;
     }
   }
+
+  const problemAnalytics = problemMeta.map((pm) => {
+    const tracker = problemTracking.get(pm.problemId);
+    const solvers = tracker ? tracker.solvers : [];
+    const totalAttempts = tracker ? tracker.totalAttempts : 0;
+    const avgSolveTimeSeconds =
+      solvers.length > 0
+        ? Math.round(solvers.reduce((acc, s) => acc + s.solveTimeSeconds, 0) / solvers.length)
+        : null;
+
+    return {
+      problemId: pm.problemId,
+      label: pm.label,
+      title: pm.title,
+      points: pm.points,
+      solvedCount: solvers.length,
+      totalAttempts,
+      acceptanceRate: totalAttempts > 0 ? Math.round((solvers.length / totalAttempts) * 100) : 0,
+      firstBlood: solvers[0] || null,
+      avgSolveTimeSeconds,
+      fastestSolvers: solvers.slice(0, 5),
+    };
+  });
 
   const standings = Array.from(byUser.values())
     .sort((a, b) => {
@@ -112,6 +184,7 @@ export async function computeContestLeaderboard(slug) {
           s || {
             problemId: pm.problemId,
             solved: false,
+            isFirstBlood: false,
             wrongAttempts: 0,
             solveTimeSeconds: null,
             language: null,
@@ -126,9 +199,12 @@ export async function computeContestLeaderboard(slug) {
     contestId: contest.id,
     slug: contest.slug,
     title: contest.title,
+    division: contest.division,
+    participantCount: contest._count.registrations,
     startsAt: contest.startsAt,
     endsAt: contest.endsAt,
     problems: problemMeta,
+    problemAnalytics,
     standings,
     updatedAt: new Date().toISOString(),
   };

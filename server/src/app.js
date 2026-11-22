@@ -11,6 +11,8 @@ import submissionsRoutes from './routes/submissions.routes.js';
 import { UPLOADS_ROOT } from './lib/avatarStorage.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import adminRoutes from './routes/admin.routes.js';
+import leaderboardRoutes from './routes/leaderboard.routes.js';
+// ...
 
 const app = express();
 
@@ -26,6 +28,7 @@ if (configErrors.length > 0) {
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 app.use(cookieParser());
+
 
 // CORS configuration (supports Vercel testing deployment + local dev + env overrides)
 const allowedOrigins = [
@@ -67,6 +70,7 @@ app.use(
 app.use('/api/auth', authRoutes);
 app.use('/api/problems', problemsRoutes);
 app.use('/api/contests', contestsRoutes);
+app.use('/api/leaderboard', leaderboardRoutes);
 app.use('/api/profile', profileRoutes);
 app.use('/api/locations', locationsRoutes);
 app.use('/api/submissions', submissionsRoutes);

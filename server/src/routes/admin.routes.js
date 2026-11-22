@@ -16,6 +16,7 @@ import {
   createContestAdmin,
   updateContestAdmin,
   deleteContestAdmin,
+  createContestProblemAdmin,
 } from '../controllers/adminContests.controller.js';
 import { listUsers, updateUserRole } from '../controllers/superuser.controller.js';
 
@@ -49,6 +50,12 @@ router.delete('/problems/:id', deleteProblem);
 // Contests
 router.get('/contests', listContestsAdmin);
 router.post('/contests', createContestAdmin);
+router.get('/contests', listContestsAdmin);
+router.post('/contests', createContestAdmin);
+router.post('/contests/problems', createContestProblemAdmin);
+router.get('/contests/:id', getContestAdmin);
+router.put('/contests/:id', updateContestAdmin);
+router.delete('/contests/:id', deleteContestAdmin);
 router.get('/contests/:id', getContestAdmin);
 router.put('/contests/:id', updateContestAdmin);
 router.delete('/contests/:id', deleteContestAdmin);

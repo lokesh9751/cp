@@ -17,6 +17,15 @@ import {
   notifyContestsChanged,
 } from '@/lib/contestTime';
 
+const DIVISION_LABELS = { OPEN: 'Open', DIV1: 'Div 1', DIV2: 'Div 2', DIV3: 'Div 3' };
+
+function formatSolveTime(seconds) {
+  if (seconds == null) return '';
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return `${m}m ${s}s`;
+}
+
 function BackLink() {
   return (
     <Link
@@ -382,11 +391,17 @@ export default function ContestDetail({ slug }) {
           <h1 className="text-section-title text-text-primary">{contest.title}</h1>
           <span
             className={`inline-flex items-center px-2.5 py-0.5 text-xs font-medium rounded-badge ${contest.type === 'DSA'
-                ? 'bg-info-bg text-info'
-                : 'bg-warning-bg text-warning'
+              ? 'bg-info-bg text-info'
+              : 'bg-warning-bg text-warning'
               }`}
           >
             {contest.type}
+          </span>
+          <span className="inline-flex items-center px-2.5 py-0.5 text-xs font-semibold rounded-badge bg-bg-section border border-border text-text-primary">
+            {DIVISION_LABELS[contest.division] || 'Open'}
+          </span>
+          <span className="text-xs text-text-muted">
+            {contest.participantCount ?? 0} participants
           </span>
         </div>
 
@@ -405,10 +420,10 @@ export default function ContestDetail({ slug }) {
         <div className="mt-4">
           <span
             className={`inline-flex items-center px-3 py-1 text-small font-medium rounded-lg font-mono ${lifecycle === 'upcoming'
-                ? 'bg-info-bg text-info'
-                : lifecycle === 'ongoing'
-                  ? 'bg-warning-bg text-warning'
-                  : 'bg-bg-section text-text-muted'
+              ? 'bg-info-bg text-info'
+              : lifecycle === 'ongoing'
+                ? 'bg-warning-bg text-warning'
+                : 'bg-bg-section text-text-muted'
               }`}
           >
             {lifecycle === 'upcoming' && `Upcoming · ${timeDisplay}`}
@@ -464,21 +479,18 @@ export default function ContestDetail({ slug }) {
         {lifecycle === 'ongoing' && !isRegistered && (
           <button
             type="button"
-            disabled
-            className="inline-flex items-center justify-center px-6 py-2.5 text-sm font-medium bg-bg-section border border-border text-text-secondary rounded-lg"
+            disabled={registerPending || authLoading}
+            onClick={handleRegister}
+            className="inline-flex items-center justify-center px-6 py-2.5 text-sm font-semibold bg-success text-white hover:opacity-90 rounded-lg transition-colors"
           >
-            Too late
+            {registerPending ? 'Joining...' : 'Join Live Contest'}
           </button>
         )}
 
         {lifecycle === 'ended' && (
-          <button
-            type="button"
-            disabled
-            className="inline-flex items-center justify-center px-6 py-2.5 text-sm font-medium bg-bg-section text-text-muted rounded-lg"
-          >
-            Contest ended
-          </button>
+          <span className="inline-flex items-center justify-center px-4 py-2 text-sm font-medium bg-bg-section border border-border text-text-secondary rounded-lg">
+            Contest Ended · Practice / Upsolve Mode
+          </span>
         )}
 
         {registerError && (
@@ -498,9 +510,10 @@ export default function ContestDetail({ slug }) {
       </div>
 
       {/* Contest Problems List */}
-      {contest.problems && contest.problems.length > 0 && (
-        <div className="mb-8 space-y-3">
-          <h2 className="text-base font-semibold text-text-primary">Contest Problems</h2>
+      <div className="mb-8 space-y-3">
+        <h2 className="text-base font-semibold text-text-primary">Contest Problems</h2>
+
+        {contest.problems && contest.problems.length > 0 ? (
           <div className="divide-y divide-border border border-border rounded-lg overflow-hidden">
             {contest.problems.map((prob) => (
               <div
@@ -524,11 +537,15 @@ export default function ContestDetail({ slug }) {
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  {prob.solved && (
-                    <span className="px-2 py-0.5 text-xs font-medium bg-success-bg text-success rounded">
-                      Solved
+                  {prob.solved ? (
+                    <span className="px-2 py-0.5 text-xs font-mono font-medium bg-success-bg text-success rounded">
+                      Solved · {formatSolveTime(prob.solveTimeSeconds)}
                     </span>
-                  )}
+                  ) : prob.wrongAttempts > 0 ? (
+                    <span className="px-2 py-0.5 text-xs font-mono font-medium bg-error-bg text-error rounded">
+                      -{prob.wrongAttempts} attempts
+                    </span>
+                  ) : null}
                   <Link
                     href={`/problem/${prob.slug}?contestId=${contest.id}`}
                     className="px-3 py-1.5 text-xs font-semibold bg-navy text-white rounded-md hover:bg-navy-hover no-underline"
@@ -539,8 +556,16 @@ export default function ContestDetail({ slug }) {
               </div>
             ))}
           </div>
-        </div>
-      )}
+        ) : (
+          <div className="p-6 text-center bg-bg-section border border-border rounded-lg text-sm text-text-secondary">
+            {lifecycle === 'upcoming'
+              ? 'Problems are locked until the contest starts.'
+              : lifecycle === 'ongoing' && !isRegistered
+                ? 'Register / Join Live Contest above to unlock the problems.'
+                : 'No problems attached to this contest yet.'}
+          </div>
+        )}
+      </div>
 
       {/* Reactions */}
       <div className="pt-5 border-t border-border">
@@ -554,8 +579,8 @@ export default function ContestDetail({ slug }) {
               aria-label="Like contest"
               aria-pressed={contest.userReaction === 'LIKE'}
               className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-small transition-colors ${contest.userReaction === 'LIKE'
-                  ? 'border-info bg-info-bg text-info font-medium'
-                  : 'border-border bg-transparent text-text-secondary hover:bg-bg-section hover:text-text-primary'
+                ? 'border-info bg-info-bg text-info font-medium'
+                : 'border-border bg-transparent text-text-secondary hover:bg-bg-section hover:text-text-primary'
                 }`}
             >
               <svg
@@ -580,8 +605,8 @@ export default function ContestDetail({ slug }) {
               aria-label="Dislike contest"
               aria-pressed={contest.userReaction === 'DISLIKE'}
               className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-small transition-colors ${contest.userReaction === 'DISLIKE'
-                  ? 'border-error bg-error-bg text-error font-medium'
-                  : 'border-border bg-transparent text-text-secondary hover:bg-bg-section hover:text-text-primary'
+                ? 'border-error bg-error-bg text-error font-medium'
+                : 'border-border bg-transparent text-text-secondary hover:bg-bg-section hover:text-text-primary'
                 }`}
             >
               <svg
@@ -610,7 +635,13 @@ export default function ContestDetail({ slug }) {
 
       {/* Live Contest Leaderboard */}
       <div className="mt-8 pt-6 border-t border-border">
-        <ContestLeaderboard slug={contest.slug} />
+        {lifecycle === 'upcoming' ? (
+          <div className="p-6 text-center bg-bg-section border border-border rounded-lg text-sm text-text-secondary">
+            Live standings and solve speed metrics will unlock once the contest begins.
+          </div>
+        ) : (
+          <ContestLeaderboard slug={contest.slug} />
+        )}
       </div>
     </article>
   );
