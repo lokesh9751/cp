@@ -289,3 +289,68 @@ export async function toggleBookmark(userId, slug) {
 
   return { slug, isBookmarked };
 }
+
+
+export async function getProblemBySlug(slug, userId = null) {
+  const problem = await prisma.problem.findUnique({
+    where: { slug },
+    include: {
+      topics: {
+        orderBy: { topic: { name: 'asc' } },
+        select: {
+          topic: { select: { id: true, name: true, slug: true } },
+        },
+      },
+      testCases: {
+        where: { isSample: true },
+        orderBy: { order: 'asc' },
+        select: {
+          id: true,
+          input: true,
+          expectedOutput: true,
+          order: true,
+        },
+      },
+      ...(userId && {
+        bookmarks: {
+          where: { userId },
+          select: { userId: true },
+        },
+      }),
+    },
+  });
+
+  if (!problem) return null;
+
+  let userStatus = 'UNSOLVED';
+  if (userId) {
+    const subs = await prisma.submission.findMany({
+      where: { userId, problemId: problem.id },
+      select: { status: true },
+    });
+    if (subs.some((s) => s.status === 'ACCEPTED')) {
+      userStatus = 'SOLVED';
+    } else if (subs.length > 0) {
+      userStatus = 'ATTEMPTED';
+    }
+  }
+
+  return {
+    id: problem.id,
+    slug: problem.slug,
+    title: problem.title,
+    type: problem.type,
+    difficulty: problem.difficulty,
+    statement: problem.statement,
+    constraints: problem.constraints,
+    examples: problem.examples,
+    starterCode: problem.starterCode,
+    timeLimitMs: problem.timeLimitMs,
+    memoryLimitKb: problem.memoryLimitKb,
+    acceptanceRate: problem.acceptanceRate,
+    sampleTestCases: problem.testCases,
+    topics: problem.topics.map((t) => t.topic),
+    isBookmarked: userId ? Boolean(problem.bookmarks?.length) : false,
+    userStatus,
+  };
+}

@@ -1,5 +1,4 @@
 import dotenv from 'dotenv';
-import { fileURLToPath } from 'url';
 import { resolve } from 'path';
 
 // Calculate the correct path to .env from the project root (where this file is located)
@@ -14,6 +13,9 @@ export const config = {
   frontendUrl: process.env.FRONTEND_URL || 'http://localhost:3000',
   jwtAccessSecret: process.env.JWT_ACCESS_SECRET,
   jwtRefreshSecret: process.env.JWT_REFRESH_SECRET,
+  judge0ApiUrl: process.env.JUDGE0_API_URL || 'https://ce.judge0.com',
+  judge0ApiHost: process.env.JUDGE0_API_HOST || '',
+  judge0ApiKey: process.env.JUDGE0_API_KEY || '',
 };
 
 // Validate required configuration

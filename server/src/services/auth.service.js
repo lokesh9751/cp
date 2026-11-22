@@ -49,6 +49,7 @@ export async function createUser(username, email, passwordHash) {
       role: 'USER',
     },
     select: {
+      avatarUrl: true,
       id: true,
       username: true,
       email: true,
@@ -87,6 +88,7 @@ export async function findUserById(userId) {
   const user = await prisma.user.findUnique({
     where: { id: userId },
     select: {
+      avatarUrl: true,
       id: true,
       username: true,
       email: true,
@@ -199,11 +201,13 @@ export async function cleanupExpiredSessions() {
  * @param {User | object} user - User object
  * @returns {object} Safe user data
  */
+
 export function getSafeUserResponse(user) {
   return {
     id: user.id,
     username: user.username,
     email: user.email,
+    avatarUrl: user.avatarUrl || null,
     createdAt: user.createdAt,
   };
 }

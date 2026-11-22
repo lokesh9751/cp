@@ -170,6 +170,20 @@ export function AuthProvider({ children }) {
     }
   }, [user, storeAuthState, clearAuthState]);
 
+  const updateUser = useCallback(
+    (partialUser) => {
+      setUser((prev) => {
+        if (!prev) return prev;
+        const merged = { ...prev, ...partialUser };
+        if (accessToken) {
+          storeAuthState(merged, accessToken);
+        }
+        return merged;
+      });
+    },
+    [accessToken, storeAuthState]
+  );
+
   return (
     <AuthContext.Provider
       value={{
@@ -180,6 +194,7 @@ export function AuthProvider({ children }) {
         signup,
         logout,
         refresh,
+        updateUser,
         isAuthenticated: Boolean(user),
       }}
     >

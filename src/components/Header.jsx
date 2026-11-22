@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
+import { resolveAssetUrl } from '@/lib/api';
 
 export default function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -156,10 +157,11 @@ export default function Header() {
                     key={link.href}
                     href={link.href}
                     prefetch={link.prefetch}
-                    className={`text-small-lg font-medium transition-colors relative no-underline ${active
+                    className={`text-small-lg font-medium transition-colors relative no-underline ${
+                      active
                         ? 'text-text-primary'
                         : 'text-text-secondary hover:text-text-primary'
-                      }`}
+                    }`}
                     aria-current={active ? 'page' : undefined}
                   >
                     {link.label}
@@ -241,7 +243,7 @@ export default function Header() {
                 >
                   {user.avatarUrl ? (
                     <img
-                      src={user.avatarUrl}
+                      src={resolveAssetUrl(user.avatarUrl)}
                       alt={user.username || 'Profile'}
                       className="w-8 h-8 rounded-full object-cover border border-border"
                     />
@@ -274,6 +276,14 @@ export default function Header() {
                         </p>
                       )}
                     </div>
+                    <Link
+                      href="/profile"
+                      className="block w-full text-left px-4 py-2 text-sm text-text-primary hover:bg-bg-section transition-colors no-underline"
+                      role="menuitem"
+                      onClick={() => setUserMenuOpen(false)}
+                    >
+                      Profile
+                    </Link>
                     <button
                       type="button"
                       className="w-full text-left px-4 py-2 text-sm text-text-primary hover:bg-bg-section transition-colors"
@@ -315,10 +325,11 @@ export default function Header() {
                     key={link.href}
                     href={link.href}
                     prefetch={link.prefetch}
-                    className={`px-2 py-3 text-body-lg rounded-lg transition-colors no-underline ${active
+                    className={`px-2 py-3 text-body-lg rounded-lg transition-colors no-underline ${
+                      active
                         ? 'bg-bg-section text-text-primary font-medium'
                         : 'text-text-secondary hover:text-text-primary hover:bg-bg-section'
-                      }`}
+                    }`}
                     onClick={() => setMobileMenuOpen(false)}
                     aria-current={active ? 'page' : undefined}
                   >
@@ -349,6 +360,13 @@ export default function Header() {
                   <div className="px-4 py-2 text-sm text-text-muted">
                     Signed in as <span className="font-medium text-text-primary">@{user?.username}</span>
                   </div>
+                  <Link
+                    href="/profile"
+                    className="block w-full text-left px-4 py-3 text-body-lg text-text-primary hover:bg-bg-section rounded-lg no-underline"
+                    onClick={() => setMobileMenuOpen(false)}
+                  >
+                    Profile
+                  </Link>
                   <button
                     type="button"
                     className="w-full text-left px-4 py-3 text-body-lg text-text-primary hover:bg-bg-section rounded-lg"

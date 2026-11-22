@@ -1,5 +1,6 @@
 import {
   getProblems,
+  getProblemBySlug,
   toggleBookmark,
 } from '../services/problems.service.js';
 import { ErrorCode } from '../constants/enums.js';
@@ -24,6 +25,31 @@ export async function listProblems(req, res, next) {
     });
 
     res.json(result);
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * GET /api/problems/:slug
+ * Get single problem details with sample test cases
+ */
+export async function getProblem(req, res, next) {
+  try {
+    const userId = req.user?.id || null;
+    const { slug } = req.validatedParams;
+    const problem = await getProblemBySlug(slug, userId);
+
+    if (!problem) {
+      return res.status(404).json({
+        error: {
+          code: ErrorCode.NOT_FOUND,
+          message: 'Problem not found',
+        },
+      });
+    }
+
+    res.json({ problem });
   } catch (error) {
     next(error);
   }

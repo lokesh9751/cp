@@ -1,15 +1,25 @@
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+
+export function resolveAssetUrl(url) {
+  if (!url) return null;
+  if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('data:')) {
+    return url;
+  }
+  return `${API_BASE_URL}${url.startsWith('/') ? url : `/${url}`}`;
+}
 
 export async function apiRequest(endpoint, options = {}) {
   const url = `${API_BASE_URL}${endpoint}`;
   const { headers: customHeaders = {}, ...restOptions } = options;
 
+  const isFormData =
+    typeof FormData !== 'undefined' && restOptions.body instanceof FormData;
+
   const headers = { ...customHeaders };
-  if (restOptions.body && !headers['Content-Type']) {
+  if (restOptions.body && !isFormData && !headers['Content-Type']) {
     headers['Content-Type'] = 'application/json';
   }
 
-  // Never send malformed Bearer tokens
   if (
     headers.Authorization === 'Bearer null' ||
     headers.Authorization === 'Bearer undefined'
@@ -197,4 +207,64 @@ export async function reactToContest(slug, reaction, accessToken) {
     }
   );
   return data;
-} 
+}
+
+// --- Profile & Locations APIs ---
+
+export async function getProfile(accessToken, options = {}) {
+  const { data } = await apiRequest('/api/profile', {
+    method: 'GET',
+    headers: authHeaders(accessToken),
+    signal: options.signal,
+  });
+  return data.profile;
+}
+
+export async function updateProfile(payload, accessToken) {
+  const { data } = await apiRequest('/api/profile', {
+    method: 'PATCH',
+    headers: authHeaders(accessToken),
+    body: JSON.stringify(payload),
+  });
+  return data.profile;
+}
+
+export async function uploadProfileAvatar(file, accessToken) {
+  const formData = new FormData();
+  formData.append('avatar', file);
+
+  const { data } = await apiRequest('/api/profile/avatar', {
+    method: 'POST',
+    headers: authHeaders(accessToken),
+    body: formData,
+  });
+  return data;
+}
+
+export async function deleteProfileAvatar(accessToken) {
+  const { data } = await apiRequest('/api/profile/avatar', {
+    method: 'DELETE',
+    headers: authHeaders(accessToken),
+  });
+  return data;
+}
+
+export async function getCountries(options = {}) {
+  const { data } = await apiRequest('/api/locations/countries', {
+    method: 'GET',
+    signal: options.signal,
+  });
+  return data.countries || [];
+}
+
+export async function getStatesByCountry(countryCode, options = {}) {
+  if (!countryCode) return [];
+  const { data } = await apiRequest(
+    `/api/locations/states/${encodeURIComponent(countryCode)}`,
+    {
+      method: 'GET',
+      signal: options.signal,
+    }
+  );
+  return data.states || [];
+}
