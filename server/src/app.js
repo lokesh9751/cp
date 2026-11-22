@@ -3,6 +3,8 @@ import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import { config, validateConfig } from './config/env.js';
 import authRoutes from './routes/auth.routes.js';
+import problemsRoutes from './routes/problems.routes.js';
+import contestsRoutes from './routes/contests.routes.js';
 import { errorHandler } from './middleware/errorHandler.js';
 
 const app = express();
@@ -30,6 +32,8 @@ app.use(cors({
 
 // API routes
 app.use('/api/auth', authRoutes);
+app.use('/api/problems', problemsRoutes);
+app.use('/api/contests', contestsRoutes);
 
 // Health check endpoint (database connectivity)
 app.get('/api/health', async (req, res, next) => {
