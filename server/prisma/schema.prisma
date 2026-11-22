@@ -1,0 +1,229 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DATABASE_URL_UNPOOLED")
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum ProblemType {
+  DSA
+  CP
+}
+
+enum Difficulty {
+  EASY
+  MEDIUM
+  HARD
+}
+
+enum ProblemStatus {
+  PENDING
+  RUNNING
+  ACCEPTED
+  WRONG_ANSWER
+  TIME_LIMIT_EXCEEDED
+  RUNTIME_ERROR
+  COMPILATION_ERROR
+}
+
+enum ReactionType {
+  LIKE
+  DISLIKE
+}
+
+model User {
+  id                  String    @id @default(cuid())
+  username            String    @unique
+  email               String    @unique
+  passwordHash        String
+  role                Role      @default(USER)
+  avatarUrl           String?
+  hobby               String?
+  institution         String?
+  countryCode         String?
+  countryName         String?
+  stateCode           String?
+  stateName           String?
+  socialLinks         Json?
+  showSolvedQuestions Boolean   @default(true)
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  authSessions         AuthSession[]
+  bookmarks            Bookmark[]
+  contestRegistrations ContestRegistration[]
+  contestReactions     ContestReaction[]
+  submissions          Submission[]
+
+  @@index([email, username])
+}
+
+model AuthSession {
+  id               String   @id @default(cuid())
+  userId           String
+  refreshTokenHash String
+  createdAt        DateTime @default(now())
+  expiresAt        DateTime
+  revokedAt        DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model Problem {
+  id            Int        @id @default(autoincrement())
+  slug          String     @unique
+  title         String
+  type          ProblemType
+  difficulty    Difficulty
+  statement     String?
+  constraints   String?
+  examples      Json?
+  starterCode   Json?
+  referenceCode String?
+  referenceLang String?
+  timeLimitMs   Int        @default(2000)
+  memoryLimitKb Int        @default(262144)
+  acceptanceRate Float     @default(0)
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @default(now()) @updatedAt
+
+  testCases     TestCase[]
+  topics        ProblemTopic[]
+  bookmarks     Bookmark[]
+  contests      ContestProblem[]
+  submissions   Submission[]
+}
+
+model TestCase {
+  id             Int      @id @default(autoincrement())
+  problemId      Int
+  input          String
+  expectedOutput String
+  isSample       Boolean  @default(false)
+  order          Int      @default(0)
+  createdAt      DateTime @default(now())
+
+  problem Problem @relation(fields: [problemId], references: [id], onDelete: Cascade)
+
+  @@index([problemId, isSample, order])
+}
+
+model Topic {
+  id   Int    @id @default(autoincrement())
+  name String @unique
+  slug String @unique
+
+  problems ProblemTopic[]
+}
+
+model ProblemTopic {
+  problemId Int
+  topicId   Int
+
+  problem Problem @relation(fields: [problemId], references: [id], onDelete: Cascade)
+  topic   Topic   @relation(fields: [topicId], references: [id], onDelete: Cascade)
+
+  @@id([problemId, topicId])
+}
+
+model Bookmark {
+  userId    String
+  problemId Int
+  createdAt DateTime @default(now())
+
+  user    User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  problem Problem @relation(fields: [problemId], references: [id], onDelete: Cascade)
+
+  @@id([userId, problemId])
+}
+
+model Contest {
+  id           Int      @id @default(autoincrement())
+  slug         String   @unique
+  title        String
+  type         ProblemType
+  description  String?
+  uploadedAt   DateTime @default(now())
+  startsAt     DateTime
+  endsAt       DateTime
+  durationMinutes Int
+  createdAt    DateTime @default(now())
+
+  contestProblems ContestProblem[]
+  registrations   ContestRegistration[]
+  reactions       ContestReaction[]
+  submissions     Submission[]
+
+  @@index([startsAt])
+}
+
+model ContestProblem {
+  contestId Int
+  problemId Int
+  order     Int
+  points    Int?
+
+  contest Contest @relation(fields: [contestId], references: [id], onDelete: Cascade)
+  problem Problem @relation(fields: [problemId], references: [id], onDelete: Cascade)
+
+  @@id([contestId, problemId])
+  @@index([contestId])
+}
+
+model ContestRegistration {
+  id           Int      @id @default(autoincrement())
+  userId       String
+  contestId    Int
+  registeredAt DateTime @default(now())
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  contest Contest @relation(fields: [contestId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, contestId])
+  @@index([userId])
+}
+
+model ContestReaction {
+  id        Int      @id @default(autoincrement())
+  userId    String
+  contestId Int
+  reaction  ReactionType
+  updatedAt DateTime @updatedAt
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  contest Contest @relation(fields: [contestId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, contestId])
+  @@index([userId])
+}
+
+model Submission {
+  id           Int      @id @default(autoincrement())
+  userId       String
+  problemId    Int
+  contestId    Int?
+  language     String
+  code         String
+  status       ProblemStatus
+  runtimeMs    Int?
+  memoryKb     Int?
+  createdAt    DateTime @default(now())
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  problem Problem @relation(fields: [problemId], references: [id], onDelete: Cascade)
+  contest Contest? @relation(fields: [contestId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([problemId])
+}
