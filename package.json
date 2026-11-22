@@ -6,7 +6,14 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "server:dev": "cd server && npm exec node src/index.js",
+    "server:start": "cd server && npm exec node src/index.js",
+    "db:generate": "cd server && npx prisma generate",
+    "db:migrate": "cd server && npx prisma migrate dev",
+    "db:deploy": "cd server && npx prisma migrate deploy",
+    "db:seed": "cd server && npx prisma db seed",
+    "db:studio": "cd server && npx prisma studio"
   },
   "dependencies": {
     "next": "14.2.0",

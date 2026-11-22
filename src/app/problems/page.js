@@ -1,7 +1,8 @@
 import { Suspense } from 'react';
 import UpcomingContests from '@/components/UpcomingContests';
 import PracticeQuestions from '@/components/PracticeQuestions';
-import { mockContests, mockQuestions } from '@/lib/mockData';
+import { mockQuestions } from '@/lib/mockData';
+import { contests } from '@/data/contests';
 
 export const metadata = {
   title: 'Practice Problems - Competitive Pirates',
@@ -16,7 +17,7 @@ function PracticeQuestionsWrapper({ questions }) {
 export default function ProblemsPage() {
   return (
     <>
-      <UpcomingContests contests={mockContests} />
+      <UpcomingContests contests={contests} />
       <Suspense fallback={<div>Loading problems...</div>}>
         <PracticeQuestionsWrapper questions={mockQuestions} />
       </Suspense>

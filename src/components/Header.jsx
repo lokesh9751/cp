@@ -1,22 +1,26 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { usePathname } from 'next/navigation';
+import { useState, useEffect, useRef } from 'react';
+import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { useAuth } from '@/context/AuthContext';
 
 export default function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
-  const [isLoggedIn] = useState(false); // Mock: change to true to test logged-in state
+  const { user, isLoading, logout } = useAuth();
   const [isDark, setIsDark] = useState(false);
   const [mounted, setMounted] = useState(false);
   const pathname = usePathname();
+  const router = useRouter();
+  const userMenuRef = useRef(null);
+  const isLoggedIn = Boolean(user);
 
   const navLinks = [
-    { href: '/problems', label: 'Problems' },
-    { href: '/contest', label: 'Contests' },
-    { href: '/leaderboard', label: 'Leaderboard' },
-    { href: '/learn', label: 'Learn' },
+    { href: '/problems', label: 'Problems', prefetch: true },
+    { href: '/contest', label: 'Contests', prefetch: true },
+    { href: '/leaderboard', label: 'Leaderboard', prefetch: false },
+    { href: '/learn', label: 'Learn', prefetch: false },
   ];
 
   // Initialize theme on mount
@@ -29,8 +33,7 @@ export default function Header() {
       } else if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
         setIsDark(true);
       }
-    } catch (e) {
-      // localStorage unavailable, use system preference
+    } catch {
       if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
         setIsDark(true);
       }
@@ -47,7 +50,7 @@ export default function Header() {
     }
     try {
       localStorage.setItem('competitive-pirates-theme', isDark ? 'dark' : 'light');
-    } catch (e) {
+    } catch {
       // ignore
     }
   }, [isDark, mounted]);
@@ -74,12 +77,55 @@ export default function Header() {
     setIsDark((prev) => !prev);
   };
 
-  // Check if a nav link is active
   const isActive = (href) => {
-    if (href === '/') {
-      return pathname === '/';
-    }
+    if (href === '/') return pathname === '/';
     return pathname.startsWith(href);
+  };
+
+  // Close user menu on outside click or Escape
+  useEffect(() => {
+    if (!userMenuOpen) return;
+
+    const handleOutsideClick = (e) => {
+      if (userMenuRef.current && !userMenuRef.current.contains(e.target)) {
+        setUserMenuOpen(false);
+      }
+    };
+
+    const handleEscape = (e) => {
+      if (e.key === 'Escape') {
+        setUserMenuOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleOutsideClick);
+    document.addEventListener('keydown', handleEscape);
+
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideClick);
+      document.removeEventListener('keydown', handleEscape);
+    };
+  }, [userMenuOpen]);
+
+  // Close menus on route change
+  useEffect(() => {
+    setMobileMenuOpen(false);
+    setUserMenuOpen(false);
+  }, [pathname]);
+
+  const getInitials = (name) => {
+    if (!name) return 'U';
+    const parts = name.trim().split(/\s+/);
+    if (parts.length >= 2) {
+      return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+    }
+    return name[0]?.toUpperCase() || 'U';
+  };
+
+  const handleLogout = async () => {
+    setUserMenuOpen(false);
+    await logout();
+    router.push('/login');
   };
 
   return (
@@ -88,7 +134,11 @@ export default function Header() {
         <div className="flex items-center justify-between h-16">
           {/* Left: Logo + Navigation */}
           <div className="flex items-center gap-8">
-            <Link href="/" className="flex items-center gap-2 text-navy font-semibold text-body-lg no-underline" aria-label="Competitive Pirates home">
+            <Link
+              href="/problems"
+              className="flex items-center gap-2 text-navy font-semibold text-body-lg no-underline"
+              aria-label="Competitive Pirates home"
+            >
               <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                 <circle cx="12" cy="12" r="10" />
                 <line x1="12" y1="2" x2="12" y2="22" />
@@ -105,17 +155,17 @@ export default function Header() {
                   <Link
                     key={link.href}
                     href={link.href}
-                    className={`text-small-lg font-medium transition-colors relative ${
-                      active
+                    prefetch={link.prefetch}
+                    className={`text-small-lg font-medium transition-colors relative no-underline ${active
                         ? 'text-text-primary'
                         : 'text-text-secondary hover:text-text-primary'
-                    }`}
+                      }`}
                     aria-current={active ? 'page' : undefined}
                   >
                     {link.label}
                     {active && (
                       <span
-                        className="absolute bottom-[-2px] left-0 right-0 h-0.5 bg-navy rounded-full"
+                        className="absolute bottom-[-4px] left-0 right-0 h-0.5 bg-navy rounded-full"
                         aria-hidden="true"
                       />
                     )}
@@ -127,37 +177,35 @@ export default function Header() {
 
           {/* Right: Theme toggle + Auth or User Menu */}
           <div className="flex items-center gap-3">
-            {/* Theme toggle */}
-            {mounted && (
-              <button
-                type="button"
-                onClick={toggleTheme}
-                className="p-2 rounded-lg text-text-secondary hover:text-text-primary hover:bg-bg-section transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-navy focus-visible:ring-offset-2 focus-visible:ring-offset-bg-card"
-                aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
-                title={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
-              >
-                {isDark ? (
-                  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                    <circle cx="12" cy="12" r="5" />
-                    <line x1="12" y1="1" x2="12" y2="3" />
-                    <line x1="12" y1="21" x2="12" y2="23" />
-                    <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
-                    <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
-                    <line x1="1" y1="12" x2="3" y2="12" />
-                    <line x1="21" y1="12" x2="23" y2="12" />
-                    <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
-                    <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
-                  </svg>
-                ) : (
-                  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                    <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
-                  </svg>
-                )}
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={toggleTheme}
+              className="p-2 rounded-lg text-text-secondary hover:text-text-primary hover:bg-bg-section transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-navy"
+              aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+              title={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+            >
+              {mounted && isDark ? (
+                <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <circle cx="12" cy="12" r="5" />
+                  <line x1="12" y1="1" x2="12" y2="3" />
+                  <line x1="12" y1="21" x2="12" y2="23" />
+                  <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
+                  <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
+                  <line x1="1" y1="12" x2="3" y2="12" />
+                  <line x1="21" y1="12" x2="23" y2="12" />
+                  <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
+                  <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
+                </svg>
+              ) : (
+                <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+                </svg>
+              )}
+            </button>
 
             {/* Mobile menu button */}
             <button
+              type="button"
               className="md:hidden p-2 text-text-secondary hover:text-text-primary rounded-lg hover:bg-bg-section transition-colors"
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
               aria-expanded={mobileMenuOpen}
@@ -178,82 +226,76 @@ export default function Header() {
               )}
             </button>
 
-            {isLoggedIn ? (
-              <div className="relative" onClick={(e) => e.stopPropagation()}>
+            {/* Auth area */}
+            {isLoading ? (
+              <div className="w-24 h-9 rounded-lg bg-bg-section" aria-hidden="true" />
+            ) : isLoggedIn && user ? (
+              <div ref={userMenuRef} className="relative">
                 <button
-                  className="flex items-center gap-2 p-1 rounded-full hover:bg-bg-section transition-colors"
-                  onClick={() => setUserMenuOpen(!userMenuOpen)}
+                  type="button"
+                  className="flex items-center gap-2 p-1 rounded-full hover:bg-bg-section transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-navy"
+                  onClick={() => setUserMenuOpen((prev) => !prev)}
                   aria-expanded={userMenuOpen}
                   aria-haspopup="true"
                   aria-label="User menu"
                 >
-                  <div className="w-8 h-8 rounded-full bg-navy flex items-center justify-center text-white text-small font-medium">
-                    U
-                  </div>
+                  {user.avatarUrl ? (
+                    <img
+                      src={user.avatarUrl}
+                      alt={user.username || 'Profile'}
+                      className="w-8 h-8 rounded-full object-cover border border-border"
+                    />
+                  ) : (
+                    <div
+                      className="w-8 h-8 rounded-full bg-navy flex items-center justify-center text-white text-sm font-medium"
+                      title={user.username || user.email || ''}
+                    >
+                      {getInitials(user.username || user.email)}
+                    </div>
+                  )}
                   <svg className="w-4 h-4 hidden sm:block text-text-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                     <polyline points="6 9 12 15 18 9" />
                   </svg>
                 </button>
 
                 {userMenuOpen && (
-                  <>
-                    <div className="fixed inset-0 z-10" onClick={() => setUserMenuOpen(false)} aria-hidden="true" />
-                    <div className="absolute right-0 mt-2 w-48 bg-bg-raised border border-border rounded-lg shadow-card py-1 z-20" role="menu">
-                      <Link
-                        href="/profile"
-                        className="block px-4 py-2 text-small-lg text-text-primary hover:bg-bg-section"
-                        role="menuitem"
-                        onClick={() => setUserMenuOpen(false)}
-                      >
-                        My Profile
-                      </Link>
-                      <Link
-                        href="/submissions"
-                        className="block px-4 py-2 text-small-lg text-text-primary hover:bg-bg-section"
-                        role="menuitem"
-                        onClick={() => setUserMenuOpen(false)}
-                      >
-                        My Submissions
-                      </Link>
-                      <Link
-                        href="/contests"
-                        className="block px-4 py-2 text-small-lg text-text-primary hover:bg-bg-section"
-                        role="menuitem"
-                        onClick={() => setUserMenuOpen(false)}
-                      >
-                        My Contests
-                      </Link>
-                      <Link
-                        href="/settings"
-                        className="block px-4 py-2 text-small-lg text-text-primary hover:bg-bg-section"
-                        role="menuitem"
-                        onClick={() => setUserMenuOpen(false)}
-                      >
-                        Settings
-                      </Link>
-                      <hr className="my-1 border-border" />
-                      <button
-                        className="w-full text-left px-4 py-2 text-small-lg text-text-primary hover:bg-bg-section"
-                        role="menuitem"
-                        onClick={() => setUserMenuOpen(false)}
-                      >
-                        Log out
-                      </button>
+                  <div
+                    className="absolute right-0 mt-2 w-56 bg-bg-raised border border-border rounded-lg shadow-card py-1 z-30"
+                    role="menu"
+                    aria-label="User menu"
+                  >
+                    <div className="px-4 py-2.5 border-b border-border">
+                      <p className="text-sm font-medium text-text-primary truncate">
+                        @{user.username || 'pirate'}
+                      </p>
+                      {user.email && (
+                        <p className="text-xs text-text-muted truncate mt-0.5">
+                          {user.email}
+                        </p>
+                      )}
                     </div>
-                  </>
+                    <button
+                      type="button"
+                      className="w-full text-left px-4 py-2 text-sm text-text-primary hover:bg-bg-section transition-colors"
+                      role="menuitem"
+                      onClick={handleLogout}
+                    >
+                      Log out
+                    </button>
+                  </div>
                 )}
               </div>
             ) : (
               <div className="flex items-center gap-2">
                 <Link
                   href="/login"
-                  className="hidden sm:inline-flex items-center justify-center px-4 py-2 text-navy border border-border rounded-lg hover:bg-bg-section transition-colors no-underline"
+                  className="hidden sm:inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-text-primary border border-border rounded-lg hover:bg-bg-section transition-colors no-underline"
                 >
                   Log in
                 </Link>
                 <Link
                   href="/signup"
-                  className="inline-flex items-center justify-center px-4 py-2 bg-navy text-white rounded-lg hover:bg-navy-hover text-white transition-colors no-underline"
+                  className="inline-flex items-center justify-center px-4 py-2 text-sm font-medium bg-navy text-white hover:text-white rounded-lg hover:bg-navy-hover transition-colors no-underline"
                 >
                   Sign up
                 </Link>
@@ -264,7 +306,7 @@ export default function Header() {
 
         {/* Mobile Navigation */}
         {mobileMenuOpen && (
-          <div id="mobile-menu" className="md:hidden py-4 border-t border-border animate-slide-down" role="navigation" aria-label="Mobile navigation">
+          <div id="mobile-menu" className="md:hidden py-4 border-t border-border" role="navigation" aria-label="Mobile navigation">
             <nav className="flex flex-col gap-2">
               {navLinks.map((link) => {
                 const active = isActive(link.href);
@@ -272,11 +314,11 @@ export default function Header() {
                   <Link
                     key={link.href}
                     href={link.href}
-                    className={`px-2 py-3 text-body-lg rounded-lg transition-colors ${
-                      active
+                    prefetch={link.prefetch}
+                    className={`px-2 py-3 text-body-lg rounded-lg transition-colors no-underline ${active
                         ? 'bg-bg-section text-text-primary font-medium'
                         : 'text-text-secondary hover:text-text-primary hover:bg-bg-section'
-                    }`}
+                      }`}
                     onClick={() => setMobileMenuOpen(false)}
                     aria-current={active ? 'page' : undefined}
                   >
@@ -289,14 +331,14 @@ export default function Header() {
                 <div className="flex flex-col gap-2 px-2">
                   <Link
                     href="/login"
-                    className="px-4 py-3 text-body-lg text-navy border border-border rounded-lg text-center hover:bg-bg-section transition-colors no-underline"
+                    className="px-4 py-3 text-body-lg text-text-primary border border-border rounded-lg text-center hover:bg-bg-section transition-colors no-underline"
                     onClick={() => setMobileMenuOpen(false)}
                   >
                     Log in
                   </Link>
                   <Link
                     href="/signup"
-                    className="px-4 py-3 text-body-lg bg-navy text-white rounded-lg text-center hover:bg-navy-hover transition-colors no-underline"
+                    className="px-4 py-3 text-body-lg bg-navy text-white hover:text-white rounded-lg text-center hover:bg-navy-hover transition-colors no-underline"
                     onClick={() => setMobileMenuOpen(false)}
                   >
                     Sign up
@@ -304,11 +346,19 @@ export default function Header() {
                 </div>
               ) : (
                 <div className="px-2 space-y-1">
-                  <Link href="/profile" className="block px-4 py-3 text-body-lg text-text-primary hover:bg-bg-section rounded-lg no-underline" onClick={() => setMobileMenuOpen(false)}>My Profile</Link>
-                  <Link href="/submissions" className="block px-4 py-3 text-body-lg text-text-primary hover:bg-bg-section rounded-lg no-underline" onClick={() => setMobileMenuOpen(false)}>My Submissions</Link>
-                  <Link href="/contests" className="block px-4 py-3 text-body-lg text-text-primary hover:bg-bg-section rounded-lg no-underline" onClick={() => setMobileMenuOpen(false)}>My Contests</Link>
-                  <Link href="/settings" className="block px-4 py-3 text-body-lg text-text-primary hover:bg-bg-section rounded-lg no-underline" onClick={() => setMobileMenuOpen(false)}>Settings</Link>
-                  <button className="w-full text-left px-4 py-3 text-body-lg text-text-primary hover:bg-bg-section rounded-lg">Log out</button>
+                  <div className="px-4 py-2 text-sm text-text-muted">
+                    Signed in as <span className="font-medium text-text-primary">@{user?.username}</span>
+                  </div>
+                  <button
+                    type="button"
+                    className="w-full text-left px-4 py-3 text-body-lg text-text-primary hover:bg-bg-section rounded-lg"
+                    onClick={() => {
+                      setMobileMenuOpen(false);
+                      handleLogout();
+                    }}
+                  >
+                    Log out
+                  </button>
                 </div>
               )}
             </nav>
@@ -317,13 +367,6 @@ export default function Header() {
       </div>
 
       <style jsx>{`
-        @keyframes slide-down {
-          from { opacity: 0; transform: translateY(-8px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-        .animate-slide-down {
-          animation: slide-down 0.15s ease-out;
-        }
         .no-underline {
           text-decoration: none !important;
         }
