@@ -1,5 +1,5 @@
 import { prisma } from '../lib/prisma.js';
-import { executeSingle } from '../lib/codeRunner.js';
+import { executeSingle, normalizeOutput } from '../lib/codeRunner.js';
 
 async function recalculateAcceptanceRate(problemId) {
     const [totalCount, acceptedCount] = await Promise.all([
@@ -42,6 +42,8 @@ export async function runProblemCode({ slug, language, code, customInput }) {
         });
 
         let expectedOutput = null;
+        let verdict = userRes.verdict;
+
         if (problem.referenceCode && problem.referenceLang) {
             try {
                 const refRes = await executeSingle({
@@ -52,8 +54,15 @@ export async function runProblemCode({ slug, language, code, customInput }) {
                     timeLimitMs: problem.timeLimitMs,
                     memoryLimitKb: problem.memoryLimitKb,
                 });
+
                 if (refRes.verdict === 'EXECUTED') {
                     expectedOutput = refRes.stdout;
+                    if (userRes.verdict === 'EXECUTED') {
+                        verdict =
+                            normalizeOutput(userRes.stdout) === normalizeOutput(expectedOutput)
+                                ? 'ACCEPTED'
+                                : 'WRONG_ANSWER';
+                    }
                 }
             } catch {
                 // Ignore reference run failure on invalid custom input
@@ -62,7 +71,7 @@ export async function runProblemCode({ slug, language, code, customInput }) {
 
         return {
             mode: 'custom',
-            verdict: userRes.verdict,
+            verdict,
             stdout: userRes.stdout,
             expectedOutput,
             errorOutput: userRes.errorOutput,
@@ -102,7 +111,6 @@ export async function runProblemCode({ slug, language, code, customInput }) {
             memoryKb: res.memoryKb,
         });
 
-        // Stop early on compilation error or wrong answer/runtime error
         if (res.verdict === 'COMPILATION_ERROR') {
             break;
         }
@@ -139,7 +147,7 @@ export async function createSubmission({ userId, slug, language, code, contestId
         data: {
             userId,
             problemId: problem.id,
-            contestId,
+            contestId: contestId != null ? Number(contestId) : null,
             language,
             code,
             status: 'RUNNING',
@@ -168,7 +176,7 @@ export async function createSubmission({ userId, slug, language, code, contestId
             passedCount += 1;
         } else {
             finalStatus = res.verdict;
-            break; // Fail-fast on first failing test case
+            break;
         }
     }
 
@@ -191,8 +199,11 @@ export async function createSubmission({ userId, slug, language, code, contestId
 }
 
 export async function getSubmissionById(id, userId) {
+    const submissionId = Number(id);
+    if (!Number.isInteger(submissionId)) return null;
+
     const sub = await prisma.submission.findUnique({
-        where: { id },
+        where: { id: submissionId },
         include: {
             problem: {
                 select: { slug: true, title: true, acceptanceRate: true },

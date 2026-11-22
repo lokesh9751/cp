@@ -12,7 +12,7 @@ export const runOrSubmitSchema = z.object({
     language: z.enum(['cpp', 'python', 'java', 'javascript']),
     code: z.string().min(1, 'Code cannot be empty').max(65536, 'Code size limit exceeded (64KB)'),
     customInput: z.string().max(16384).optional(),
-    contestId: z.string().optional().nullable(),
+    contestId: z.coerce.number().int().optional().nullable(),
 });
 
 export async function runCode(req, res, next) {
