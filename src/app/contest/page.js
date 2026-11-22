@@ -1,6 +1,4 @@
-import { Metadata } from 'next';
 import ContestsOverview from '@/components/ContestsOverview';
-import { getUpcomingContests, getOngoingContests, getDemoNow } from '@/data/contests';
 
 export const metadata = {
   title: 'Contests - Competitive Pirates',
@@ -8,9 +6,5 @@ export const metadata = {
 };
 
 export default function ContestPage() {
-  const now = getDemoNow();
-  const upcoming = getUpcomingContests(now);
-  const ongoing = getOngoingContests(now);
-
-  return <ContestsOverview upcoming={upcoming} ongoing={ongoing} />;
+  return <ContestsOverview />;
 }

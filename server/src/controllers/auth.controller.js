@@ -1,18 +1,29 @@
-import { hashPassword, comparePassword, findUserByIdentifier, findUserById, createUser, createSession, findValidSession, getSafeUserResponse } from '../services/auth.service.js';
+import crypto from 'crypto';
+import {
+  hashPassword,
+  comparePassword,
+  findUserByIdentifier,
+  createUser,
+  createSession,
+  findValidSession,
+  rotateSession,
+  revokeSession,
+  getSafeUserResponse,
+} from '../services/auth.service.js';
 import { generateAccessToken } from '../lib/jwt.js';
 import { ErrorCode } from '../constants/enums.js';
 
-/**
- * Handle user signup
- * @param {object} req - Express request
- * @param {object} res - Express response
- * @param {Function} next - Express next function
- */
+const REFRESH_COOKIE_OPTIONS = {
+  httpOnly: true,
+  secure: process.env.NODE_ENV === 'production',
+  sameSite: 'lax',
+  path: '/api/auth',
+};
+
 export async function signup(req, res, next) {
   try {
     const { username, email, password } = req.validatedBody;
 
-    // Check if username already exists
     const existingUsername = await findUserByIdentifier(username);
     if (existingUsername) {
       return res.status(409).json({
@@ -26,7 +37,6 @@ export async function signup(req, res, next) {
       });
     }
 
-    // Check if email already exists
     const existingEmail = await findUserByIdentifier(email);
     if (existingEmail) {
       return res.status(409).json({
@@ -40,21 +50,15 @@ export async function signup(req, res, next) {
       });
     }
 
-    // Hash password and create user
     const passwordHash = await hashPassword(password);
     const user = await createUser(username, email, passwordHash);
 
-    // Create session
-    const { token: refreshToken, sessionId } = await createSession(user.id);
+    const { token: refreshToken } = await createSession(user.id);
     const accessToken = generateAccessToken(user.id);
 
-    // Set refresh token cookie
     res.cookie('refreshToken', refreshToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      path: '/api/auth',
-      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+      ...REFRESH_COOKIE_OPTIONS,
+      maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 
     res.status(201).json({
@@ -66,19 +70,11 @@ export async function signup(req, res, next) {
   }
 }
 
-/**
- * Handle user login
- * @param {object} req - Express request
- * @param {object} res - Express response
- * @param {Function} next - Express next function
- */
 export async function login(req, res, next) {
   try {
     const { identifier, password } = req.validatedBody;
 
-    // Find user by email or username
     const user = await findUserByIdentifier(identifier);
-
     if (!user) {
       return res.status(401).json({
         error: {
@@ -88,9 +84,7 @@ export async function login(req, res, next) {
       });
     }
 
-    // Verify password
     const isValidPassword = await comparePassword(password, user.passwordHash);
-
     if (!isValidPassword) {
       return res.status(401).json({
         error: {
@@ -100,17 +94,12 @@ export async function login(req, res, next) {
       });
     }
 
-    // Create session
-    const { token: refreshToken, sessionId } = await createSession(user.id);
+    const { token: refreshToken } = await createSession(user.id);
     const accessToken = generateAccessToken(user.id);
 
-    // Set refresh token cookie
     res.cookie('refreshToken', refreshToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      path: '/api/auth',
-      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+      ...REFRESH_COOKIE_OPTIONS,
+      maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 
     res.json({
@@ -122,18 +111,11 @@ export async function login(req, res, next) {
   }
 }
 
-/**
- * Handle token refresh
- * @param {object} req - Express request
- * @param {object} res - Express response
- * @param {Function} next - Express next function
- */
 export async function refresh(req, res, next) {
   try {
     const refreshToken = req.cookies.refreshToken;
 
     if (!refreshToken) {
-      // Guest session - no refresh token means not authenticated
       return res.status(200).json({
         authenticated: false,
         user: null,
@@ -141,22 +123,11 @@ export async function refresh(req, res, next) {
       });
     }
 
-    // Hash the provided token to compare with stored hash
-    const crypto = await import('crypto');
     const tokenHash = crypto.createHash('sha256').update(refreshToken).digest('hex');
-
-    // Find valid session
     const session = await findValidSession(tokenHash);
 
     if (!session) {
-      // Guest session - invalid or expired session
-      res.clearCookie('refreshToken', {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
-        path: '/api/auth',
-      });
-
+      res.clearCookie('refreshToken', REFRESH_COOKIE_OPTIONS);
       return res.status(200).json({
         authenticated: false,
         user: null,
@@ -164,17 +135,11 @@ export async function refresh(req, res, next) {
       });
     }
 
-    // Rotate the refresh token
-    const { service: rotateSession } = await import('../services/auth.service.js');
     const newSession = await rotateSession(session.id, session.userId);
 
-    // Set new refresh token cookie
     res.cookie('refreshToken', newSession.token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      path: '/api/auth',
-      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+      ...REFRESH_COOKIE_OPTIONS,
+      maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 
     const accessToken = generateAccessToken(session.userId);
@@ -189,55 +154,29 @@ export async function refresh(req, res, next) {
   }
 }
 
-/**
- * Handle logout
- * @param {object} req - Express request
- * @param {object} res - Express response
- * @param {Function} next - Express next function
- */
 export async function logout(req, res, next) {
   try {
-    // Clear refresh token from database if session exists
     const refreshToken = req.cookies.refreshToken;
 
     if (refreshToken) {
-      const crypto = await import('crypto');
       const tokenHash = crypto.createHash('sha256').update(refreshToken).digest('hex');
-
-      const session = await import('../services/auth.service.js').then(m => m.findValidSession(tokenHash));
-
+      const session = await findValidSession(tokenHash);
       if (session) {
-        await import('../services/auth.service.js').then(m => m.revokeSession(session.id));
+        await revokeSession(session.id);
       }
     }
 
-    // Clear refresh token cookie
-    res.clearCookie('refreshToken', {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      path: '/api/auth',
-    });
-
+    res.clearCookie('refreshToken', REFRESH_COOKIE_OPTIONS);
     res.status(204).send();
   } catch (error) {
     next(error);
   }
 }
 
-/**
- * Get current user
- * @param {object} req - Express request
- * @param {object} res - Express response
- * @param {Function} next - Express next function
- */
 export async function me(req, res, next) {
   try {
-    // req.user is set by requireAuth middleware
-    const user = req.user;
-
     res.json({
-      user: getSafeUserResponse(user),
+      user: getSafeUserResponse(req.user),
     });
   } catch (error) {
     next(error);

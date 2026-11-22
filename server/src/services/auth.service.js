@@ -109,7 +109,7 @@ export async function createSession(userId) {
   const rawToken = generateRefreshToken(userId, sessionId);
   const refreshTokenHash = hashRefreshToken(rawToken);
   const expiresAt = new Date();
-  expiresAt.setDay(expiresAt.getDay() + 7); // 7 days
+  expiresAt.setDate(expiresAt.getDate() + 7); // 7 days
 
   await prisma.authSession.create({
     data: {

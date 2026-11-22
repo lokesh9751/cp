@@ -1,5 +1,6 @@
 /** @type {import('tailwindcss').Config} */
 module.exports = {
+  darkMode: 'class',
   content: [
     './src/pages/**/*.{js,jsx}',
     './src/components/**/*.{js,jsx}',
@@ -9,38 +10,45 @@ module.exports = {
     extend: {
       colors: {
         // Background
-        'bg-page': '#FAF8F4',
-        'bg-card': '#FFFFFF',
-        'bg-section': '#F3F1EC',
+        'bg-page': 'var(--bg-page)',
+        'bg-card': 'var(--bg-card)',
+        'bg-section': 'var(--bg-section)',
+        'bg-raised': 'var(--bg-raised)',
+        'bg-input': 'var(--bg-input)',
+        'row-hover': 'var(--row-hover)',
         // Text
-        'text-primary': '#1F2937',
-        'text-secondary': '#4B5563',
-        'text-muted': '#6B7280',
+        'text-primary': 'var(--text-primary)',
+        'text-secondary': 'var(--text-secondary)',
+        'text-muted': 'var(--text-muted)',
         // Brand & Actions
-        'navy': '#123B63',
-        'navy-hover': '#0E2F4F',
-        'gold': '#B7791F',
-        'gold-hover': '#96601A',
-        'gold-text': '#7A4F12',
+        'navy': 'var(--navy)',
+        'navy-hover': 'var(--navy-hover)',
+        'gold': 'var(--gold)',
+        'gold-hover': 'var(--gold-hover)',
+        'gold-text': 'var(--gold-text)',
         // Status
-        'success': '#15803D',
-        'success-bg': '#EAF7EF',
-        'warning': '#B45309',
-        'warning-bg': '#FDF4E3',
-        'error': '#B91C1C',
-        'error-bg': '#FDECEC',
-        'info': '#1D4ED8',
-        'info-bg': '#EAF1FD',
+        'success': 'var(--success)',
+        'success-bg': 'var(--success-bg)',
+        'warning': 'var(--warning)',
+        'warning-bg': 'var(--warning-bg)',
+        'error': 'var(--error)',
+        'error-bg': 'var(--error-bg)',
+        'info': 'var(--info)',
+        'info-bg': 'var(--info-bg)',
         // Borders
-        'border': '#E2E0DA',
-        'border-strong': '#C9C6BE',
+        'border': 'var(--border)',
+        'border-strong': 'var(--border-strong)',
+        'border-focus': 'var(--border-focus)',
         // Difficulty
-        'easy': '#15803D',
-        'easy-bg': '#EAF7EF',
-        'medium': '#B45309',
-        'medium-bg': '#FDF4E3',
-        'hard': '#B91C1C',
-        'hard-bg': '#FDECEC',
+        'easy': 'var(--easy)',
+        'easy-bg': 'var(--easy-bg)',
+        'medium': 'var(--medium)',
+        'medium-bg': 'var(--medium-bg)',
+        'hard': 'var(--hard)',
+        'hard-bg': 'var(--hard-bg)',
+        // Badges
+        'badge-default-bg': 'var(--badge-default-bg)',
+        'badge-default-text': 'var(--badge-default-text)',
       },
       fontFamily: {
         sans: ['ui-sans-serif', 'system-ui', '-apple-system', 'Segoe UI', 'Roboto', 'Arial', 'sans-serif'],
@@ -74,4 +82,4 @@ module.exports = {
     },
   },
   plugins: [],
-}
+};

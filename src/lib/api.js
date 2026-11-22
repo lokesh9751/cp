@@ -1,59 +1,63 @@
-// API helper for frontend authentication
-// Handles requests to the backend Express API
-
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
-/**
- * Make an API request with proper error handling
- * @param {string} endpoint - API endpoint
- * @param {object} options - Fetch options
- * @returns {Promise<{data: any, status: number}>}
- */
 export async function apiRequest(endpoint, options = {}) {
   const url = `${API_BASE_URL}${endpoint}`;
+  const { headers: customHeaders = {}, ...restOptions } = options;
 
-  const config = {
-    headers: {
-      'Content-Type': 'application/json',
-      ...options.headers,
-    },
-    ...options,
-  };
-
-  // Include credentials for auth endpoints that use cookies
-  if (endpoint.startsWith('/api/auth')) {
-    config.credentials = 'include';
+  const headers = { ...customHeaders };
+  if (restOptions.body && !headers['Content-Type']) {
+    headers['Content-Type'] = 'application/json';
   }
 
-  const response = await fetch(url, config);
+  // Never send malformed Bearer tokens
+  if (
+    headers.Authorization === 'Bearer null' ||
+    headers.Authorization === 'Bearer undefined'
+  ) {
+    delete headers.Authorization;
+  }
 
-  // Read response body once
-  let data = {};
-  const contentType = response.headers.get('content-type');
-  if (contentType && contentType.includes('application/json')) {
-    try {
-      data = await response.json();
-    } catch (e) {
-      // JSON parse failed
+  const config = {
+    ...restOptions,
+    headers,
+    credentials: 'include',
+  };
+
+  let response;
+  try {
+    response = await fetch(url, config);
+  } catch (networkErr) {
+    if (networkErr?.name === 'AbortError') {
+      throw networkErr;
     }
-  } else {
+    const err = new Error('Unable to reach the server. Please check your connection.');
+    err.status = 0;
+    err.isNetworkError = true;
+    throw err;
+  }
+
+  let data = {};
+  const contentType = response.headers.get('content-type') || '';
+  if (contentType.includes('application/json')) {
     try {
       data = await response.json();
-    } catch (e) {
-      // Not JSON
+    } catch {
+      data = {};
     }
   }
 
   if (!response.ok) {
-    // Use safe error message from backend
-    const errorMessage = (data?.error?.message) ||
-      (typeof data?.error === 'string' ? data.error : 'Request failed');
+    const errorMessage =
+      data?.error?.message ||
+      (typeof data?.error === 'string' ? data.error : null) ||
+      data?.message ||
+      'Request failed';
 
     const error = new Error(errorMessage);
     error.status = response.status;
+    error.code = data?.error?.code || null;
     error.data = data;
 
-    // Include fieldErrors if present
     if (data?.error?.fieldErrors) {
       error.fieldErrors = data.error.fieldErrors;
     }
@@ -64,13 +68,12 @@ export async function apiRequest(endpoint, options = {}) {
   return { data, status: response.status };
 }
 
-/**
- * Register a new user
- * @param {string} username - Username
- * @param {string} email - Email
- * @param {string} password - Password
- * @returns {Promise<{user: object, accessToken: string}>}
- */
+function authHeaders(accessToken) {
+  return accessToken ? { Authorization: `Bearer ${accessToken}` } : {};
+}
+
+// --- Auth APIs ---
+
 export async function signup({ username, email, password }) {
   const { data } = await apiRequest('/api/auth/signup', {
     method: 'POST',
@@ -79,12 +82,6 @@ export async function signup({ username, email, password }) {
   return data;
 }
 
-/**
- * Login a user
- * @param {string} identifier - Email or username
- * @param {string} password - Password
- * @returns {Promise<{user: object, accessToken: string}>}
- */
 export async function login({ identifier, password }) {
   const { data } = await apiRequest('/api/auth/login', {
     method: 'POST',
@@ -93,10 +90,6 @@ export async function login({ identifier, password }) {
   return data;
 }
 
-/**
- * Refresh the access token
- * @returns {Promise<{accessToken: string, authenticated: boolean, user: object|null}>}
- */
 export async function refreshAccessToken() {
   const { data } = await apiRequest('/api/auth/refresh', {
     method: 'POST',
@@ -104,38 +97,104 @@ export async function refreshAccessToken() {
   return data;
 }
 
-/**
- * Logout the current user
- * @returns {Promise<void>}
- */
 export async function logout() {
   await apiRequest('/api/auth/logout', {
     method: 'POST',
   });
 }
 
-/**
- * Get the current authenticated user
- * @param {string} accessToken - Access token
- * @returns {Promise<{user: object}>}
- */
 export async function getCurrentUser(accessToken) {
   const { data } = await apiRequest('/api/auth/me', {
     method: 'GET',
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-    },
+    headers: authHeaders(accessToken),
   });
   return data;
 }
 
-/**
- * Health check endpoint
- * @returns {Promise<{status: string, database: string}>}
- */
 export async function healthCheck() {
   const { data } = await apiRequest('/api/health', {
     method: 'GET',
   });
   return data;
 }
+
+// --- Problems & Bookmarks APIs ---
+
+export async function getProblems(params = {}, accessToken = null, options = {}) {
+  const query = new URLSearchParams();
+
+  if (params.type && params.type !== 'all') query.set('type', params.type);
+  if (params.search && params.search.trim()) query.set('search', params.search.trim());
+  if (params.difficulty && params.difficulty !== 'all') query.set('difficulty', params.difficulty);
+  if (params.topic && params.topic !== 'all') query.set('topic', params.topic);
+  if (params.status && params.status !== 'all') query.set('status', params.status);
+  if (params.page && Number(params.page) > 0) query.set('page', String(params.page));
+  if (params.limit && Number(params.limit) > 0) query.set('limit', String(params.limit));
+
+  const qs = query.toString();
+  const endpoint = qs ? `/api/problems?${qs}` : '/api/problems';
+
+  const { data } = await apiRequest(endpoint, {
+    method: 'GET',
+    headers: authHeaders(accessToken),
+    signal: options.signal,
+  });
+  return data;
+}
+
+export async function toggleProblemBookmark(slug, accessToken) {
+  const { data } = await apiRequest(
+    `/api/problems/${encodeURIComponent(slug)}/bookmark`,
+    {
+      method: 'POST',
+      headers: authHeaders(accessToken),
+    }
+  );
+  return data;
+}
+
+// --- Contests APIs ---
+
+export async function getContests(accessToken = null, options = {}) {
+  const { data } = await apiRequest('/api/contests', {
+    method: 'GET',
+    headers: authHeaders(accessToken),
+    signal: options.signal,
+  });
+  return data;
+}
+
+export async function getContestBySlug(slug, accessToken = null, options = {}) {
+  const { data } = await apiRequest(
+    `/api/contests/${encodeURIComponent(slug)}`,
+    {
+      method: 'GET',
+      headers: authHeaders(accessToken),
+      signal: options.signal,
+    }
+  );
+  return data?.contest || data;
+}
+
+export async function registerForContest(slug, accessToken) {
+  const { data } = await apiRequest(
+    `/api/contests/${encodeURIComponent(slug)}/register`,
+    {
+      method: 'POST',
+      headers: authHeaders(accessToken),
+    }
+  );
+  return data;
+}
+
+export async function reactToContest(slug, reaction, accessToken) {
+  const { data } = await apiRequest(
+    `/api/contests/${encodeURIComponent(slug)}/reaction`,
+    {
+      method: 'POST',
+      headers: authHeaders(accessToken),
+      body: JSON.stringify({ reaction }),
+    }
+  );
+  return data;
+} 
