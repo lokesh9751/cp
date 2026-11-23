@@ -6,7 +6,11 @@ import {
     patchProfile,
     uploadAvatar,
     deleteAvatar,
+    getMyAnalytics,
+    getPublicProfile,
 } from '../controllers/profile.controller.js';
+
+
 
 const router = express.Router();
 
@@ -47,5 +51,7 @@ router.get('/', requireAuth, getProfile);
 router.patch('/', requireAuth, patchProfile);
 router.post('/avatar', requireAuth, handleAvatarUpload, uploadAvatar);
 router.delete('/avatar', requireAuth, deleteAvatar);
+router.get('/analytics', requireAuth, getMyAnalytics);
+router.get('/u/:username', getPublicProfile);
 
 export default router;

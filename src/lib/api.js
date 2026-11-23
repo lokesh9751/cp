@@ -508,3 +508,108 @@ export async function getGlobalLeaderboard(params = {}, accessToken = null, opti
   });
   return data;
 }
+
+export async function getMyAnalytics(accessToken, options = {}) {
+  const { data } = await apiRequest('/api/profile/analytics', {
+    method: 'GET',
+    headers: authHeaders(accessToken),
+    signal: options.signal,
+  });
+  return data;
+}
+
+export async function getPublicProfile(username, options = {}) {
+  const { data } = await apiRequest(
+    `/api/profile/u/${encodeURIComponent(username)}`,
+    {
+      method: 'GET',
+      signal: options.signal,
+    }
+  );
+  return data;
+}
+
+
+// --- Social (Friends & Chat) APIs ---
+
+export async function getSocialOverview(accessToken, options = {}) {
+  const { data } = await apiRequest('/api/social/overview', {
+    method: 'GET',
+    headers: authHeaders(accessToken),
+    signal: options.signal,
+  });
+  return data;
+}
+
+export async function searchSocialUsers(query, accessToken, options = {}) {
+  const { data } = await apiRequest(
+    `/api/social/search?q=${encodeURIComponent(query)}`,
+    {
+      method: 'GET',
+      headers: authHeaders(accessToken),
+      signal: options.signal,
+    }
+  );
+  return data.users || [];
+}
+
+export async function sendFriendRequestApi(userId, accessToken) {
+  const { data } = await apiRequest('/api/social/requests', {
+    method: 'POST',
+    headers: authHeaders(accessToken),
+    body: JSON.stringify({ userId }),
+  });
+  return data;
+}
+
+export async function respondFriendRequestApi(friendshipId, action, accessToken) {
+  const { data } = await apiRequest(`/api/social/requests/${friendshipId}`, {
+    method: 'PATCH',
+    headers: authHeaders(accessToken),
+    body: JSON.stringify({ action }),
+  });
+  return data;
+}
+
+export async function removeFriendApi(friendId, accessToken) {
+  const { data } = await apiRequest(`/api/social/friends/${friendId}`, {
+    method: 'DELETE',
+    headers: authHeaders(accessToken),
+  });
+  return data;
+}
+
+export async function getChatMessages(friendId, accessToken, options = {}) {
+  const { data } = await apiRequest(`/api/social/messages/${friendId}`, {
+    method: 'GET',
+    headers: authHeaders(accessToken),
+    signal: options.signal,
+  });
+  return data.messages || [];
+}
+
+export async function sendChatMessageApi(friendId, content, accessToken) {
+  const { data } = await apiRequest(`/api/social/messages/${friendId}`, {
+    method: 'POST',
+    headers: authHeaders(accessToken),
+    body: JSON.stringify({ content }),
+  });
+  return data.message;
+}
+
+export async function editChatMessageApi(messageId, content, accessToken) {
+  const { data } = await apiRequest(`/api/social/messages/${messageId}`, {
+    method: 'PATCH',
+    headers: authHeaders(accessToken),
+    body: JSON.stringify({ content }),
+  });
+  return data.message;
+}
+
+export async function deleteChatMessageApi(messageId, accessToken) {
+  const { data } = await apiRequest(`/api/social/messages/${messageId}`, {
+    method: 'DELETE',
+    headers: authHeaders(accessToken),
+  });
+  return data.message;
+}

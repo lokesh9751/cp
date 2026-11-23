@@ -47,6 +47,12 @@ enum ContestDivision {
   DIV3
 }
 
+enum FriendshipStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+}
+
 model User {
   id                  String    @id @default(cuid())
   username            String    @unique
@@ -64,12 +70,19 @@ model User {
   showSolvedQuestions Boolean   @default(true)
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
+  rating              Int       @default(1200)
+  maxRating           Int       @default(1200)
 
   authSessions         AuthSession[]
   bookmarks            Bookmark[]
   contestRegistrations ContestRegistration[]
   contestReactions     ContestReaction[]
   submissions          Submission[]
+  ratingHistory       RatingHistory[]
+  sentFriendRequests     Friendship[] @relation("FriendRequester")
+  receivedFriendRequests Friendship[] @relation("FriendAddressee")
+  sentMessages           Message[]    @relation("MessageSender")
+  receivedMessages       Message[]    @relation("MessageReceiver")
 
   @@index([email, username])
 }
@@ -169,11 +182,14 @@ model Contest {
   endsAt       DateTime
   durationMinutes Int
   createdAt    DateTime @default(now())
+  isRated             Boolean   @default(true)
+  ratingsFinalizedAt  DateTime?
 
   contestProblems ContestProblem[]
   registrations   ContestRegistration[]
   reactions       ContestReaction[]
   submissions     Submission[]
+  ratingHistory   RatingHistory[]
 
   @@index([startsAt])
 }
@@ -237,4 +253,55 @@ model Submission {
   @@index([userId])
   @@index([problemId])
   @@index([contestId, problemId, createdAt])
+}
+
+model RatingHistory {
+  id           Int      @id @default(autoincrement())
+  userId       String
+  contestId    Int
+  rank         Int
+  oldRating    Int
+  newRating    Int
+  ratingChange Int
+  createdAt    DateTime @default(now())
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  contest Contest @relation(fields: [contestId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, contestId])
+  @@index([userId, createdAt])
+}
+
+model Friendship {
+  id          String           @id @default(cuid())
+  requesterId String
+  addresseeId String
+  status      FriendshipStatus @default(PENDING)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  requester User @relation("FriendRequester", fields: [requesterId], references: [id], onDelete: Cascade)
+  addressee User @relation("FriendAddressee", fields: [addresseeId], references: [id], onDelete: Cascade)
+
+  @@unique([requesterId, addresseeId])
+  @@index([addresseeId, status])
+  @@index([requesterId, status])
+}
+
+model Message {
+  id         String    @id @default(cuid())
+  senderId   String
+  receiverId String
+  content    String
+  editedAt   DateTime?
+  isDeleted  Boolean   @default(false)
+  readAt     DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  sender   User @relation("MessageSender", fields: [senderId], references: [id], onDelete: Cascade)
+  receiver User @relation("MessageReceiver", fields: [receiverId], references: [id], onDelete: Cascade)
+
+  @@index([senderId, receiverId, createdAt])
+  @@index([receiverId, readAt])
 }

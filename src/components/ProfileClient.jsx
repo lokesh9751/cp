@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
     getProfile,
+    getMyAnalytics,
     updateProfile,
     uploadProfileAvatar,
     deleteProfileAvatar,
@@ -13,6 +14,8 @@ import {
     resolveAssetUrl,
 } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
+import ActivityHeatmap from '@/components/ActivityHeatmap';
+import RatingProgressChart from '@/components/RatingProgressChart';
 
 const SOCIAL_FIELDS = [
     { key: 'github', label: 'GitHub', placeholder: 'https://github.com/username' },
@@ -70,6 +73,7 @@ export default function ProfileClient() {
     const { user, accessToken, isLoading: authLoading, refresh, updateUser } = useAuth();
 
     const [profile, setProfile] = useState(null);
+    const [analytics, setAnalytics] = useState(null);
     const [form, setForm] = useState({
         username: '',
         hobby: '',
@@ -145,20 +149,22 @@ export default function ProfileClient() {
         });
     }, []);
 
-    // Load profile + countries once auth finishes
+    // Load profile + countries once auth finishes  
     const loadInitialData = useCallback(async () => {
         if (!accessToken) return;
         setLoading(true);
         setPageError(null);
 
         try {
-            const [profileData, countriesList] = await Promise.all([
+            const [profileData, countriesList, analyticsData] = await Promise.all([
                 runAuthed((token) => getProfile(token)),
                 getCountries(),
+                runAuthed((token) => getMyAnalytics(token)).catch(() => null),
             ]);
 
             setCountries(countriesList);
             applyProfileData(profileData);
+            setAnalytics(analyticsData);
 
             if (profileData.countryCode) {
                 setStatesLoading(true);
@@ -476,7 +482,12 @@ export default function ProfileClient() {
                         >
                             {avatarBusy ? 'Uploading...' : avatarSrc ? 'Change photo' : 'Upload photo'}
                         </button>
-
+                        <Link
+                            href={`/u/${profile.username}`}
+                            className="px-3 py-2 text-small font-medium border border-border text-text-secondary hover:text-text-primary hover:bg-bg-section rounded-lg transition-colors no-underline"
+                        >
+                            Public profile
+                        </Link>
                         {avatarSrc && (
                             <button
                                 type="button"
@@ -517,6 +528,24 @@ export default function ProfileClient() {
                     </div>
                 )}
             </section>
+
+            {analytics && (
+                <>
+                    <RatingProgressChart
+                        ratingHistory={analytics.ratingHistory || []}
+                        xpHistory={analytics.xpHistory || []}
+                        currentRating={profile.rating ?? 1200}
+                        maxRating={profile.maxRating ?? 1200}
+                        currentXp={analytics.stats?.xp ?? 0}
+                    />
+                    <ActivityHeatmap
+                        heatmap={analytics.heatmap || []}
+                        activeDays={analytics.stats?.activeDays ?? 0}
+                        currentStreak={analytics.stats?.currentStreak ?? 0}
+                        maxStreak={analytics.stats?.maxStreak ?? 0}
+                    />
+                </>
+            )}
 
             {/* Edit Profile Form */}
             <form onSubmit={handleSave} className="bg-bg-card border border-border rounded-lg p-6 space-y-6">

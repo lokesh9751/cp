@@ -12,7 +12,7 @@ import { UPLOADS_ROOT } from './lib/avatarStorage.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import adminRoutes from './routes/admin.routes.js';
 import leaderboardRoutes from './routes/leaderboard.routes.js';
-// ...
+import socialRoutes from './routes/social.routes.js';
 
 const app = express();
 
@@ -75,6 +75,7 @@ app.use('/api/profile', profileRoutes);
 app.use('/api/locations', locationsRoutes);
 app.use('/api/submissions', submissionsRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/social', socialRoutes);
 
 // Health check endpoint (database connectivity)
 app.get('/api/health', async (req, res) => {

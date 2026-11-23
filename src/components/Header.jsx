@@ -22,6 +22,7 @@ export default function Header() {
     { href: '/contest', label: 'Contests', prefetch: true },
     { href: '/leaderboard', label: 'Leaderboard', prefetch: false },
     { href: '/learn', label: 'Learn', prefetch: false },
+    { href: '/social', label: 'Social' },
   ];
 
   // Initialize theme on mount

@@ -5,6 +5,7 @@ import {
     setUserAvatar,
 } from '../services/profile.service.js';
 import { processAndSaveAvatar } from '../lib/avatarStorage.js';
+import { getUserAnalytics, getPublicUserProfile } from '../services/analytics.service.js';
 
 const optionalUrlSchema = z
     .string()
@@ -43,16 +44,16 @@ const updateProfileSchema = z.object({
     stateCode: z.string().trim().max(10).optional(),
     showSolvedQuestions: z.boolean().optional(),
     socialLinks: z
-    .object({
-      github: optionalUrlSchema,
-      linkedin: optionalUrlSchema,
-      codeforces: optionalUrlSchema,
-      leetcode: optionalUrlSchema,
-      instagram: optionalUrlSchema,
-      twitter: optionalUrlSchema,
-      website: optionalUrlSchema,
-    })
-    .optional(),
+        .object({
+            github: optionalUrlSchema,
+            linkedin: optionalUrlSchema,
+            codeforces: optionalUrlSchema,
+            leetcode: optionalUrlSchema,
+            instagram: optionalUrlSchema,
+            twitter: optionalUrlSchema,
+            website: optionalUrlSchema,
+        })
+        .optional(),
 });
 
 export async function getProfile(req, res, next) {
@@ -140,6 +141,30 @@ export async function deleteAvatar(req, res, next) {
     try {
         await setUserAvatar(req.user.id, null);
         res.json({ avatarUrl: null });
+    } catch (error) {
+        next(error);
+    }
+}
+
+export async function getMyAnalytics(req, res, next) {
+    try {
+        const analytics = await getUserAnalytics(req.user.id);
+        res.json(analytics);
+    } catch (error) {
+        next(error);
+    }
+}
+
+export async function getPublicProfile(req, res, next) {
+    try {
+        const { username } = req.params;
+        const data = await getPublicUserProfile(username);
+        if (!data) {
+            return res.status(404).json({
+                error: { code: 'NOT_FOUND', message: 'User not found' },
+            });
+        }
+        res.json(data);
     } catch (error) {
         next(error);
     }
