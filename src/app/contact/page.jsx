@@ -23,7 +23,7 @@ export default function ContactPage() {
                             Instagram
                         </p>
                         <p className="text-base font-semibold text-text-primary mt-1">
-                            @YOUR_INSTAGRAM
+                            arthur_morgan9751
                         </p>
                     </a>
 
@@ -37,7 +37,7 @@ export default function ContactPage() {
                             GitHub
                         </p>
                         <p className="text-base font-semibold text-text-primary mt-1">
-                            github.com/YOUR_GITHUB
+                            lokesh9751
                         </p>
                     </a>
                 </div>
