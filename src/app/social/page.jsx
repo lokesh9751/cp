@@ -383,9 +383,9 @@ export default function SocialPage() {
                 </div>
             )}
 
-            <div className="grid grid-cols-1 md:grid-cols-12 gap-4 min-h-[72vh]">
+            <div className="grid grid-cols-1 md:grid-cols-12 gap-4 h-[calc(100vh-130px)] min-h-[520px]">
                 {/* Left Sidebar: Unified Tabs (Chats / Requests / Add Friend) */}
-                <aside className="md:col-span-4 bg-bg-card border border-border rounded-lg flex flex-col overflow-hidden">
+                <aside className="md:col-span-4 bg-bg-card border border-border rounded-lg flex flex-col overflow-hidden h-full min-h-0">
                     <div className="p-3 border-b border-border">
                         <div className="grid grid-cols-3 gap-1 bg-bg-section p-1 rounded-lg border border-border">
                             <button
@@ -621,7 +621,7 @@ export default function SocialPage() {
                 </aside>
 
                 {/* Right Panel: Chat Window */}
-                <section className="md:col-span-8 bg-bg-card border border-border rounded-lg flex flex-col overflow-hidden">
+                <section className="md:col-span-8 bg-bg-card border border-border rounded-lg flex flex-col overflow-hidden h-full min-h-0">
                     {!activeFriend ? (
                         <div className="flex-1 flex flex-col items-center justify-center p-8 text-center">
                             <h2 className="text-section-title text-text-primary">Select a conversation</h2>
@@ -656,7 +656,7 @@ export default function SocialPage() {
                             </div>
 
                             {/* Messages Feed */}
-                            <div className="flex-1 overflow-y-auto p-5 space-y-3 bg-bg-page/40">
+                            <div className="flex-1 min-h-0 overflow-y-auto p-5 space-y-3 bg-bg-page/40">
                                 {messagesLoading ? (
                                     <p className="text-center text-small text-text-muted">Loading messages...</p>
                                 ) : messages.length === 0 ? (

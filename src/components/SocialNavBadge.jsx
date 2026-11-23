@@ -1,12 +1,76 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
+import { usePathname } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { API_BASE_URL, getSocialOverview } from '@/lib/api';
 
+const MUTE_STORAGE_KEY = 'cp-chat-sound-muted';
+
 export default function SocialNavBadge() {
     const { user, accessToken } = useAuth();
+    const pathname = usePathname();
     const [count, setCount] = useState(0);
+
+    const pathnameRef = useRef(pathname);
+    pathnameRef.current = pathname;
+
+    const audioRef = useRef(null);
+    const unlockedRef = useRef(false);
+
+    // Initialize Audio & unlock on first user interaction (browser autoplay rule)
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+        const audio = new Audio('/sounds/message.mp3');
+        audio.preload = 'auto';
+        audioRef.current = audio;
+
+        const unlockAudio = () => {
+            if (unlockedRef.current || !audioRef.current) return;
+            audioRef.current.muted = true;
+            audioRef.current
+                .play()
+                .then(() => {
+                    audioRef.current.pause();
+                    audioRef.current.currentTime = 0;
+                    audioRef.current.muted = false;
+                    unlockedRef.current = true;
+                })
+                .catch(() => {
+                    if (audioRef.current) audioRef.current.muted = false;
+                });
+        };
+
+        window.addEventListener('pointerdown', unlockAudio, { passive: true });
+        window.addEventListener('keydown', unlockAudio, { passive: true });
+        return () => {
+            window.removeEventListener('pointerdown', unlockAudio);
+            window.removeEventListener('keydown', unlockAudio);
+        };
+    }, []);
+
+    const playNotificationSound = useCallback(() => {
+        try {
+            // 1. Agar user already /social page par hai toh sound nahi bajegi
+            const currentPath = pathnameRef.current || '';
+            if (currentPath === '/social' || currentPath.startsWith('/social/')) {
+                return;
+            }
+
+            // 2. Agar user ne sound mute kar rakha hai toh sound nahi bajegi
+            if (localStorage.getItem(MUTE_STORAGE_KEY) === 'true') {
+                return;
+            }
+
+            const audio = audioRef.current || new Audio('/sounds/message.mp3');
+            audio.currentTime = 0;
+            audio.play().catch(() => {
+                // Ignore if browser blocked autoplay before interaction
+            });
+        } catch {
+            // Ignore storage/audio errors
+        }
+    }, []);
 
     const fetchCount = useCallback(async () => {
         if (!user || !accessToken) {
@@ -34,11 +98,9 @@ export default function SocialNavBadge() {
 
         fetchCount();
 
-        // Instant sync when SocialPage reads messages or responds to requests
         const handleRefresh = () => fetchCount();
         window.addEventListener('social-badge-refresh', handleRefresh);
 
-        // Real-time SSE stream for instant incoming notifications
         const controller = new AbortController();
         async function connectStream() {
             try {
@@ -62,10 +124,29 @@ export default function SocialNavBadge() {
                     buffer = chunks.pop() || '';
 
                     for (const chunk of chunks) {
-                        if (
-                            chunk.includes('event: message_new') ||
-                            chunk.includes('event: social_update')
-                        ) {
+                        const lines = chunk.split('\n');
+                        let eventName = 'message';
+                        let dataStr = '';
+
+                        for (const line of lines) {
+                            if (line.startsWith('event:')) eventName = line.slice(6).trim();
+                            else if (line.startsWith('data:')) dataStr += line.slice(5).trim();
+                        }
+
+                        if (eventName === 'message_new') {
+                            let payload = null;
+                            try {
+                                payload = dataStr ? JSON.parse(dataStr) : null;
+                            } catch {
+                                payload = null;
+                            }
+
+                            // Sirf tab sound bajao jab message kisi aur ne bheja ho
+                            if (!payload?.message || payload.message.senderId !== user.id) {
+                                playNotificationSound();
+                            }
+                            fetchCount();
+                        } else if (eventName === 'social_update') {
                             fetchCount();
                         }
                     }
@@ -81,7 +162,7 @@ export default function SocialNavBadge() {
             window.removeEventListener('social-badge-refresh', handleRefresh);
             controller.abort();
         };
-    }, [user?.id, accessToken, fetchCount]);
+    }, [user?.id, accessToken, fetchCount, playNotificationSound]);
 
     if (!count) return null;
 

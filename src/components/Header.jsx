@@ -7,11 +7,14 @@ import { useAuth } from '@/context/AuthContext';
 import { resolveAssetUrl } from '@/lib/api';
 import SocialNavBadge from '@/components/SocialNavBadge';
 
+const MUTE_STORAGE_KEY = 'cp-chat-sound-muted';
+
 export default function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const { user, isLoading, logout } = useAuth();
   const [isDark, setIsDark] = useState(false);
+  const [isSoundMuted, setIsSoundMuted] = useState(false);
   const [mounted, setMounted] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
@@ -26,7 +29,7 @@ export default function Header() {
     { href: '/social', label: 'Social' },
   ];
 
-  // Initialize theme on mount
+  // Initialize theme & sound preference on mount
   useEffect(() => {
     setMounted(true);
     try {
@@ -36,6 +39,7 @@ export default function Header() {
       } else if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
         setIsDark(true);
       }
+      setIsSoundMuted(localStorage.getItem(MUTE_STORAGE_KEY) === 'true');
     } catch {
       if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
         setIsDark(true);
@@ -78,6 +82,18 @@ export default function Header() {
 
   const toggleTheme = () => {
     setIsDark((prev) => !prev);
+  };
+
+  const toggleSoundMute = () => {
+    setIsSoundMuted((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem(MUTE_STORAGE_KEY, String(next));
+      } catch {
+        // ignore
+      }
+      return next;
+    });
   };
 
   const isActive = (href) => {
@@ -179,8 +195,32 @@ export default function Header() {
             </nav>
           </div>
 
-          {/* Right: Theme toggle + Auth or User Menu */}
+          {/* Right: Sound toggle + Theme toggle + Auth or User Menu */}
           <div className="flex items-center gap-3">
+            {isLoggedIn && mounted && (
+              <button
+                type="button"
+                onClick={toggleSoundMute}
+                className="p-2 rounded-lg text-text-secondary hover:text-text-primary hover:bg-bg-section transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-navy"
+                aria-label={isSoundMuted ? 'Unmute chat notifications' : 'Mute chat notifications'}
+                title={isSoundMuted ? 'Unmute chat sound' : 'Mute chat sound'}
+              >
+                {isSoundMuted ? (
+                  <svg className="w-5 h-5 text-text-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+                    <line x1="23" y1="9" x2="17" y2="15" />
+                    <line x1="17" y1="9" x2="23" y2="15" />
+                  </svg>
+                ) : (
+                  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+                    <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
+                    <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
+                  </svg>
+                )}
+              </button>
+            )}
+
             <button
               type="button"
               onClick={toggleTheme}
