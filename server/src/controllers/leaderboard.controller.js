@@ -51,10 +51,21 @@ export async function computeContestLeaderboard(slug) {
   const problemIds = problemMeta.map((p) => p.problemId);
   const pointsByProblem = new Map(problemMeta.map((p) => [p.problemId, p.points]));
 
+  const disqualifiedRegs = await prisma.contestRegistration.findMany({
+    where: { contestId: contest.id, isDisqualified: true },
+    select: { userId: true },
+  });
+  const disqualifiedIds = disqualifiedRegs.map((r) => r.userId);
+
   const submissions = await prisma.submission.findMany({
     where: {
       contestId: contest.id,
       problemId: { in: problemIds },
+      ...(disqualifiedIds.length > 0 ? { userId: { notIn: disqualifiedIds } } : {}),
+      user: {
+        isBanned: false,
+        NOT: { role: 'SUPERUSER', isProfileHidden: true },
+      },
     },
     orderBy: { createdAt: 'asc' },
     include: {

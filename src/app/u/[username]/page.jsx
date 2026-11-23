@@ -235,18 +235,23 @@ export default function PublicProfilePage() {
                         )}
 
                         <div className="min-w-0">
-                            <div className="flex flex-wrap items-center gap-2.5">
-                                <h1 className="text-page-title text-text-primary truncate">
+                            <div className="flex flex-wrap items-center gap-2">
+                                <h1 className="text-page-title text-text-primary truncate leading-tight">
                                     @{profile.username}
                                 </h1>
+                                {profile.role === 'ADMIN' && (
+                                    <span className="inline-flex items-center px-2.5 py-0.5 text-xs font-semibold rounded-full bg-info-bg text-info ">
+                                        Admin
+                                    </span>
+                                )}
                                 {stats.league?.name && (
-                                    <span className="inline-flex items-center px-2.5 py-0.5 text-xs font-medium rounded-badge bg-bg-section text-text-primary border border-border">
+                                    <span className="inline-flex items-center px-2.5 py-0.5 text-xs font-medium rounded-full bg-bg-section text-text-primary border border-border">
                                         {stats.league.name}
                                     </span>
                                 )}
                             </div>
 
-                            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1.5 text-small text-text-secondary">
+                            <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 mt-1.5 text-small text-text-secondary">
                                 {profile.institution && <span>{profile.institution}</span>}
                                 {profile.institution && locationText && <span aria-hidden="true">·</span>}
                                 {locationText && <span>{locationText}</span>}

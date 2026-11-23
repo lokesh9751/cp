@@ -1,7 +1,15 @@
 ﻿'use client';
 
 import { useState, useEffect } from 'react';
-import { API_BASE_URL, getContestLeaderboard } from '@/lib/api';
+import Link from 'next/link';
+import { toast } from 'sonner';
+import {
+  API_BASE_URL,
+  getContestLeaderboard,
+  adminFinalizeContestRatings,
+  adminDisqualifyParticipant,
+  adminRemoveContestRating,
+} from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 
 function formatElapsed(seconds) {
@@ -14,10 +22,13 @@ function formatElapsed(seconds) {
 }
 
 export default function ContestLeaderboard({ slug }) {
-  const { user } = useAuth();
+  const { user, accessToken } = useAuth();
   const [board, setBoard] = useState(null);
   const [loading, setLoading] = useState(true);
   const [liveConnected, setLiveConnected] = useState(false);
+  const [modBusy, setModBusy] = useState(null);
+
+  const isModerator = user?.role === 'ADMIN' || user?.role === 'SUPERUSER';
 
   useEffect(() => {
     if (!slug) return;
@@ -62,6 +73,60 @@ export default function ContestLeaderboard({ slug }) {
     };
   }, [slug]);
 
+  const handleFinalizeRatings = async () => {
+    if (!board?.contestId || !accessToken) return;
+    setModBusy('finalize');
+    try {
+      const res = await adminFinalizeContestRatings(board.contestId, accessToken);
+      if (res?.skipped) {
+        toast.info(res.reason || 'Ratings already finalized or contest is unrated.');
+      } else {
+        toast.success(`Ratings finalized for ${res?.participants ?? 0} participants.`);
+      }
+    } catch (err) {
+      toast.error(err?.message || 'Failed to finalize ratings');
+    } finally {
+      setModBusy(null);
+    }
+  };
+
+  const handleRemoveRating = async (row) => {
+    if (!board?.contestId || !accessToken) return;
+    const ok = window.confirm(`Remove contest rating entry for @${row.username}?`);
+    if (!ok) return;
+
+    setModBusy(`rating-${row.userId}`);
+    try {
+      await adminRemoveContestRating(board.contestId, row.userId, accessToken);
+      toast.success(`Removed contest rating for @${row.username}`);
+    } catch (err) {
+      toast.error(err?.message || 'Failed to remove rating');
+    } finally {
+      setModBusy(null);
+    }
+  };
+
+  const handleDisqualify = async (row) => {
+    if (!board?.contestId || !accessToken) return;
+    const reason = window.prompt(
+      `Disqualify @${row.username} from this contest and revert their rating?\nOptional reason:`,
+      'Rule violation'
+    );
+    if (reason === null) return;
+
+    setModBusy(`dq-${row.userId}`);
+    try {
+      await adminDisqualifyParticipant(board.contestId, row.userId, reason, accessToken);
+      toast.success(`@${row.username} disqualified from contest`);
+      const fresh = await getContestLeaderboard(slug);
+      setBoard(fresh);
+    } catch (err) {
+      toast.error(err?.message || 'Failed to disqualify participant');
+    } finally {
+      setModBusy(null);
+    }
+  };
+
   if (loading) {
     return <div className="py-6 text-sm text-text-muted">Loading live standings...</div>;
   }
@@ -77,17 +142,32 @@ export default function ContestLeaderboard({ slug }) {
         <div className="flex items-center gap-2">
           <h2 className="text-base font-semibold text-text-primary">Live Standings & Solve Speed</h2>
           <span
-            className={`inline-flex items-center gap-1.5 px-2 py-0.5 text-xs font-medium rounded-full ${
-              liveConnected ? 'bg-success-bg text-success' : 'bg-bg-section text-text-muted'
-            }`}
+            className={`inline-flex items-center gap-1.5 px-2 py-0.5 text-xs font-medium rounded-full ${liveConnected ? 'bg-success-bg text-success' : 'bg-bg-section text-text-muted'
+              }`}
           >
-            <span className={`w-2 h-2 rounded-full ${liveConnected ? 'bg-success animate-pulse' : 'bg-text-muted'}`} />
+            <span
+              className={`w-2 h-2 rounded-full ${liveConnected ? 'bg-success animate-pulse' : 'bg-text-muted'
+                }`}
+            />
             {liveConnected ? 'Live SSE' : 'Syncing'}
           </span>
         </div>
-        <span className="text-xs text-text-muted">
-          Score = Points · Penalty = +5m per wrong attempt before AC
-        </span>
+
+        <div className="flex flex-wrap items-center gap-3">
+          <span className="text-xs text-text-muted">
+            Score = Points · Penalty = +5m per wrong attempt before AC
+          </span>
+          {isModerator && board?.contestId && (
+            <button
+              type="button"
+              disabled={modBusy === 'finalize'}
+              onClick={handleFinalizeRatings}
+              className="px-3 py-1.5 text-xs font-semibold bg-navy text-white hover:bg-navy-hover rounded-md transition-colors"
+            >
+              {modBusy === 'finalize' ? 'Finalizing...' : 'Finalize Ratings'}
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Per-Problem Solve Speed Analytics */}
@@ -103,14 +183,23 @@ export default function ContestLeaderboard({ slug }) {
               </div>
 
               <div className="flex items-center justify-between text-[11px] text-text-secondary">
-                <span>Solved: <strong className="text-text-primary">{p.solvedCount}</strong></span>
-                <span>AC: <strong className="text-text-primary">{p.acceptanceRate}%</strong></span>
-                <span>Avg: <strong className="font-mono text-text-primary">{formatElapsed(p.avgSolveTimeSeconds)}</strong></span>
+                <span>
+                  Solved: <strong className="text-text-primary">{p.solvedCount}</strong>
+                </span>
+                <span>
+                  AC: <strong className="text-text-primary">{p.acceptanceRate}%</strong>
+                </span>
+                <span>
+                  Avg:{' '}
+                  <strong className="font-mono text-text-primary">
+                    {formatElapsed(p.avgSolveTimeSeconds)}
+                  </strong>
+                </span>
               </div>
 
               {p.firstBlood ? (
                 <div className="pt-1 border-t border-border text-[11px] text-warning flex items-center justify-between gap-1">
-                  <span className="truncate font-medium">⚡ @{p.firstBlood.username}</span>
+                  <span className="truncate font-medium">First: @{p.firstBlood.username}</span>
                   <span className="font-mono font-semibold shrink-0">
                     {formatElapsed(p.firstBlood.solveTimeSeconds)}
                   </span>
@@ -132,7 +221,8 @@ export default function ContestLeaderboard({ slug }) {
             Your Position: #{myRow.rank} (@{myRow.username})
           </span>
           <span className="font-mono text-text-primary">
-            {myRow.totalPoints} pts · {myRow.solvedCount}/{problems.length} solved · {formatElapsed(myRow.totalTimeSeconds)}
+            {myRow.totalPoints} pts · {myRow.solvedCount}/{problems.length} solved ·{' '}
+            {formatElapsed(myRow.totalTimeSeconds)}
           </span>
         </div>
       )}
@@ -156,6 +246,7 @@ export default function ContestLeaderboard({ slug }) {
                     {p.label} ({p.points})
                   </th>
                 ))}
+                {isModerator && <th className="px-3 py-2.5 text-right">Moderation</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-border bg-bg-card">
@@ -165,7 +256,13 @@ export default function ContestLeaderboard({ slug }) {
                   <tr key={row.userId} className={isMe ? 'bg-info-bg/40' : 'hover:bg-row-hover'}>
                     <td className="px-3 py-2.5 font-mono font-bold text-text-primary">#{row.rank}</td>
                     <td className="px-3 py-2.5 font-medium text-text-primary">
-                      @{row.username} {isMe && <span className="text-[10px] text-info font-semibold">(You)</span>}
+                      <Link
+                        href={`/u/${row.username}`}
+                        className="hover:text-navy no-underline"
+                      >
+                        @{row.username}
+                      </Link>{' '}
+                      {isMe && <span className="text-[10px] text-info font-semibold">(You)</span>}
                     </td>
                     <td className="px-3 py-2.5 font-mono font-semibold text-success">{row.totalPoints}</td>
                     <td className="px-3 py-2.5 font-mono text-text-secondary">
@@ -180,15 +277,13 @@ export default function ContestLeaderboard({ slug }) {
                         <td key={cell.problemId || i} className="px-2.5 py-2 text-center">
                           {cell.solved ? (
                             <div
-                              className={`inline-flex flex-col items-center px-2 py-1 rounded ${
-                                cell.isFirstBlood
+                              className={`inline-flex flex-col items-center px-2 py-1 rounded ${cell.isFirstBlood
                                   ? 'bg-warning-bg text-warning border border-warning/40'
                                   : 'bg-success-bg text-success'
-                              }`}
+                                }`}
                               title={cell.isFirstBlood ? 'First Blood (Fastest Solver)' : 'Accepted'}
                             >
                               <span className="font-mono font-semibold">
-                                {cell.isFirstBlood ? '⚡ ' : ''}
                                 {formatElapsed(cell.solveTimeSeconds)}
                               </span>
                               <span className="text-[10px] uppercase font-mono">
@@ -207,6 +302,28 @@ export default function ContestLeaderboard({ slug }) {
                         </td>
                       );
                     })}
+                    {isModerator && (
+                      <td className="px-3 py-2.5 text-right whitespace-nowrap">
+                        <div className="inline-flex gap-1.5">
+                          <button
+                            type="button"
+                            disabled={modBusy === `rating-${row.userId}`}
+                            onClick={() => handleRemoveRating(row)}
+                            className="px-2 py-1 text-[11px] font-medium rounded border border-border bg-bg-section text-text-secondary hover:text-text-primary"
+                          >
+                            Remove Rating
+                          </button>
+                          <button
+                            type="button"
+                            disabled={modBusy === `dq-${row.userId}`}
+                            onClick={() => handleDisqualify(row)}
+                            className="px-2 py-1 text-[11px] font-medium rounded bg-error-bg text-error hover:opacity-90"
+                          >
+                            Disqualify
+                          </button>
+                        </div>
+                      </td>
+                    )}
                   </tr>
                 );
               })}

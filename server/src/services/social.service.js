@@ -22,6 +22,8 @@ export async function searchUsersForFriend(currentUserId, query) {
         where: {
             id: { not: currentUserId },
             username: { contains: q, mode: 'insensitive' },
+            isBanned: false,
+            isProfileHidden: false,
         },
         select: USER_PUBLIC_SELECT,
         take: 15,

@@ -12,6 +12,7 @@ import {
     getCountries,
     getStatesByCountry,
     resolveAssetUrl,
+    superuserToggleStealth,
 } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import ActivityHeatmap from '@/components/ActivityHeatmap';
@@ -109,6 +110,7 @@ export default function ProfileClient() {
 
     const [togglePending, setTogglePending] = useState(false);
     const [toggleError, setToggleError] = useState(null);
+    const [stealthBusy, setStealthBusy] = useState(false);
 
     // Execute authenticated API call with automatic 1-time refresh on 401
     const runAuthed = useCallback(
@@ -339,6 +341,22 @@ export default function ProfileClient() {
 
     // Instant toggle for showing solved questions on profile
     const handleToggleSolvedVisibility = async () => {
+
+        const handleToggleStealth = async () => {
+            if (stealthBusy || !profile) return;
+            const previous = Boolean(profile.isProfileHidden);
+            const nextValue = !previous;
+
+            setStealthBusy(true);
+            setProfile((prev) => (prev ? { ...prev, isProfileHidden: nextValue } : prev));
+            try {
+                await runAuthed((token) => superuserToggleStealth(nextValue, token));
+            } catch {
+                setProfile((prev) => (prev ? { ...prev, isProfileHidden: previous } : prev));
+            } finally {
+                setStealthBusy(false);
+            }
+        };
         if (togglePending || !profile) return;
 
         const previous = Boolean(profile.showSolvedQuestions);
@@ -366,6 +384,23 @@ export default function ProfileClient() {
             setToggleError(err?.message || 'Could not update solved questions visibility.');
         } finally {
             setTogglePending(false);
+        }
+    };
+
+    const handleToggleStealth = async () => {
+        if (stealthBusy || !profile) return;
+        const previous = Boolean(profile.isProfileHidden);
+        const nextValue = !previous;
+
+        setStealthBusy(true);
+        setProfile((prev) => (prev ? { ...prev, isProfileHidden: nextValue } : prev));
+        try {
+            await runAuthed((token) => superuserToggleStealth(nextValue, token));
+        } catch (err) {
+            console.error('Stealth toggle failed:', err);
+            setProfile((prev) => (prev ? { ...prev, isProfileHidden: previous } : prev));
+        } finally {
+            setStealthBusy(false);
         }
     };
 
@@ -445,7 +480,14 @@ export default function ProfileClient() {
                         )}
 
                         <div className="min-w-0">
-                            <h1 className="text-page-title text-text-primary truncate">@{profile.username}</h1>
+                            <div className="flex flex-wrap items-center gap-2">
+                                <h1 className="text-page-title text-text-primary truncate">@{profile.username}</h1>
+                                {user?.role === 'ADMIN' && (
+                                    <span className="inline-flex items-center px-2.5 py-0.5 text-xs font-medium rounded-badge bg-info-bg text-info border border-border">
+                                        Admin
+                                    </span>
+                                )}
+                            </div>
                             <p className="text-small text-text-muted truncate">{profile.email}</p>
 
                             <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-2 text-small text-text-secondary">
@@ -528,6 +570,31 @@ export default function ProfileClient() {
                     </div>
                 )}
             </section>
+
+            {user?.role === 'SUPERUSER' && (
+                <section className="bg-bg-card border border-border rounded-lg p-5 flex items-center justify-between gap-4">
+                    <div>
+                        <h2 className="text-card-title text-text-primary">Hide profile (Stealth mode)</h2>
+                        <p className="text-small text-text-secondary mt-0.5">
+                            When enabled, your profile is hidden from public URLs, leaderboards, and friend search.
+                        </p>
+                    </div>
+                    <button
+                        type="button"
+                        role="switch"
+                        aria-checked={Boolean(profile.isProfileHidden)}
+                        disabled={stealthBusy}
+                        onClick={handleToggleStealth}
+                        className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${profile.isProfileHidden ? 'bg-navy' : 'bg-border-strong'
+                            }`}
+                    >
+                        <span
+                            className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${profile.isProfileHidden ? 'translate-x-6' : 'translate-x-1'
+                                }`}
+                        />
+                    </button>
+                </section>
+            )}
 
             {analytics && (
                 <>

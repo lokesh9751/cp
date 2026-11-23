@@ -192,10 +192,15 @@ export async function getPublicUserProfile(username) {
             rating: true,
             maxRating: true,
             createdAt: true,
+            role: true,
+            isProfileHidden: true,
+            isBanned: true,
         },
     });
 
     if (!user) return null;
+    if (user.isBanned) return null;
+    if (user.role === 'SUPERUSER' && user.isProfileHidden) return null;
 
     const analytics = await getUserAnalytics(user.id);
 

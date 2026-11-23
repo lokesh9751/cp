@@ -13,6 +13,8 @@ import { errorHandler } from './middleware/errorHandler.js';
 import adminRoutes from './routes/admin.routes.js';
 import leaderboardRoutes from './routes/leaderboard.routes.js';
 import socialRoutes from './routes/social.routes.js';
+import moderationRoutes from './routes/moderation.routes.js';
+import { startRatingScheduler } from './services/rating.service.js';
 
 const app = express();
 
@@ -76,6 +78,8 @@ app.use('/api/locations', locationsRoutes);
 app.use('/api/submissions', submissionsRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/social', socialRoutes);
+app.use('/api/moderation', moderationRoutes);
+startRatingScheduler();
 
 // Health check endpoint (database connectivity)
 app.get('/api/health', async (req, res) => {

@@ -108,137 +108,140 @@ export async function getUserProfile(userId) {
             socialLinks: true,
             showSolvedQuestions: true,
             createdAt: true,
+            isProfileHidden: true,
         },
     });
 
     if (!user) return null;
 
     const solvedData = await getSolvedProblemsData(userId);
-    return formatProfileResponse(user, solvedData);
+    return {
+        ...formatProfileResponse(user, solvedData),
+        isProfileHidden: Boolean(user.isProfileHidden),
+    };
 }
+    export async function updateUserProfile(userId, payload) {
+        const updateData = {};
 
-export async function updateUserProfile(userId, payload) {
-    const updateData = {};
+        // Username update + case-insensitive uniqueness check
+        if (payload.username !== undefined) {
+            const trimmed = payload.username.trim();
+            const existing = await prisma.user.findFirst({
+                where: {
+                    username: { equals: trimmed, mode: 'insensitive' },
+                    NOT: { id: userId },
+                },
+                select: { id: true },
+            });
 
-    // Username update + case-insensitive uniqueness check
-    if (payload.username !== undefined) {
-        const trimmed = payload.username.trim();
-        const existing = await prisma.user.findFirst({
-            where: {
-                username: { equals: trimmed, mode: 'insensitive' },
-                NOT: { id: userId },
-            },
-            select: { id: true },
-        });
-
-        if (existing) {
-            const err = new Error('Username is already taken');
-            err.status = 409;
-            err.code = 'CONFLICT';
-            err.fieldErrors = { username: ['Username is already taken'] };
-            throw err;
-        }
-
-        updateData.username = trimmed;
-    }
-
-    if (payload.hobby !== undefined) {
-        updateData.hobby = payload.hobby.trim() || null;
-    }
-
-    if (payload.institution !== undefined) {
-        updateData.institution = payload.institution.trim() || null;
-    }
-
-    if (payload.showSolvedQuestions !== undefined) {
-        updateData.showSolvedQuestions = Boolean(payload.showSolvedQuestions);
-    }
-
-    // Country & State validation against country-state-city
-    if (payload.countryCode !== undefined || payload.stateCode !== undefined) {
-        const countryCode = (payload.countryCode || '').trim().toUpperCase();
-        const stateCode = (payload.stateCode || '').trim().toUpperCase();
-
-        if (!countryCode) {
-            updateData.countryCode = null;
-            updateData.countryName = null;
-            updateData.stateCode = null;
-            updateData.stateName = null;
-        } else {
-            const countryObj = Country.getCountryByCode(countryCode);
-            if (!countryObj) {
-                const err = new Error('Invalid country selected');
-                err.status = 400;
-                err.fieldErrors = { countryCode: ['Please select a valid country'] };
+            if (existing) {
+                const err = new Error('Username is already taken');
+                err.status = 409;
+                err.code = 'CONFLICT';
+                err.fieldErrors = { username: ['Username is already taken'] };
                 throw err;
             }
 
-            updateData.countryCode = countryObj.isoCode;
-            updateData.countryName = countryObj.name;
+            updateData.username = trimmed;
+        }
 
-            if (stateCode) {
-                const stateObj = State.getStateByCodeAndCountry(stateCode, countryObj.isoCode);
-                if (!stateObj) {
-                    const err = new Error('Invalid state for the selected country');
-                    err.status = 400;
-                    err.fieldErrors = { stateCode: ['Please select a valid state'] };
-                    throw err;
-                }
-                updateData.stateCode = stateObj.isoCode;
-                updateData.stateName = stateObj.name;
-            } else {
+        if (payload.hobby !== undefined) {
+            updateData.hobby = payload.hobby.trim() || null;
+        }
+
+        if (payload.institution !== undefined) {
+            updateData.institution = payload.institution.trim() || null;
+        }
+
+        if (payload.showSolvedQuestions !== undefined) {
+            updateData.showSolvedQuestions = Boolean(payload.showSolvedQuestions);
+        }
+
+        // Country & State validation against country-state-city
+        if (payload.countryCode !== undefined || payload.stateCode !== undefined) {
+            const countryCode = (payload.countryCode || '').trim().toUpperCase();
+            const stateCode = (payload.stateCode || '').trim().toUpperCase();
+
+            if (!countryCode) {
+                updateData.countryCode = null;
+                updateData.countryName = null;
                 updateData.stateCode = null;
                 updateData.stateName = null;
+            } else {
+                const countryObj = Country.getCountryByCode(countryCode);
+                if (!countryObj) {
+                    const err = new Error('Invalid country selected');
+                    err.status = 400;
+                    err.fieldErrors = { countryCode: ['Please select a valid country'] };
+                    throw err;
+                }
+
+                updateData.countryCode = countryObj.isoCode;
+                updateData.countryName = countryObj.name;
+
+                if (stateCode) {
+                    const stateObj = State.getStateByCodeAndCountry(stateCode, countryObj.isoCode);
+                    if (!stateObj) {
+                        const err = new Error('Invalid state for the selected country');
+                        err.status = 400;
+                        err.fieldErrors = { stateCode: ['Please select a valid state'] };
+                        throw err;
+                    }
+                    updateData.stateCode = stateObj.isoCode;
+                    updateData.stateName = stateObj.name;
+                } else {
+                    updateData.stateCode = null;
+                    updateData.stateName = null;
+                }
             }
         }
+
+        if (payload.socialLinks !== undefined) {
+            updateData.socialLinks = {
+                ...EMPTY_SOCIAL_LINKS,
+                ...normalizeSocialLinks(payload.socialLinks),
+            };
+        }
+
+        const updatedUser = await prisma.user.update({
+            where: { id: userId },
+            data: updateData,
+            select: {
+                id: true,
+                username: true,
+                email: true,
+                avatarUrl: true,
+                hobby: true,
+                institution: true,
+                countryCode: true,
+                countryName: true,
+                stateCode: true,
+                stateName: true,
+                socialLinks: true,
+                showSolvedQuestions: true,
+                createdAt: true,
+            },
+        });
+
+        const solvedData = await getSolvedProblemsData(userId);
+        return formatProfileResponse(updatedUser, solvedData);
     }
 
-    if (payload.socialLinks !== undefined) {
-        updateData.socialLinks = {
-            ...EMPTY_SOCIAL_LINKS,
-            ...normalizeSocialLinks(payload.socialLinks),
-        };
+    export async function setUserAvatar(userId, newAvatarUrl) {
+        const existing = await prisma.user.findUnique({
+            where: { id: userId },
+            select: { avatarUrl: true },
+        });
+
+        const updated = await prisma.user.update({
+            where: { id: userId },
+            data: { avatarUrl: newAvatarUrl },
+            select: { id: true, avatarUrl: true },
+        });
+
+        if (existing?.avatarUrl && existing.avatarUrl !== newAvatarUrl) {
+            await deleteLocalAvatar(existing.avatarUrl);
+        }
+
+        return updated.avatarUrl;
     }
-
-    const updatedUser = await prisma.user.update({
-        where: { id: userId },
-        data: updateData,
-        select: {
-            id: true,
-            username: true,
-            email: true,
-            avatarUrl: true,
-            hobby: true,
-            institution: true,
-            countryCode: true,
-            countryName: true,
-            stateCode: true,
-            stateName: true,
-            socialLinks: true,
-            showSolvedQuestions: true,
-            createdAt: true,
-        },
-    });
-
-    const solvedData = await getSolvedProblemsData(userId);
-    return formatProfileResponse(updatedUser, solvedData);
-}
-
-export async function setUserAvatar(userId, newAvatarUrl) {
-    const existing = await prisma.user.findUnique({
-        where: { id: userId },
-        select: { avatarUrl: true },
-    });
-
-    const updated = await prisma.user.update({
-        where: { id: userId },
-        data: { avatarUrl: newAvatarUrl },
-        select: { id: true, avatarUrl: true },
-    });
-
-    if (existing?.avatarUrl && existing.avatarUrl !== newAvatarUrl) {
-        await deleteLocalAvatar(existing.avatarUrl);
-    }
-
-    return updated.avatarUrl;
-}

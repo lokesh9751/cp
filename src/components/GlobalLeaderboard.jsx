@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import Link from 'next/link';
 import { getGlobalLeaderboard, resolveAssetUrl } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 
@@ -25,7 +26,6 @@ function LeagueBadge({ league }) {
         <span
             className={`inline-flex items-center gap-1 px-2.5 py-0.5 text-xs font-semibold rounded-full border whitespace-nowrap ${style}`}
         >
-            {league.key === 'MYTHICAL_IMMORTAL' ? '👑 ' : ''}
             {league.label}
         </span>
     );
@@ -152,7 +152,12 @@ export default function GlobalLeaderboard() {
             {topThree.length > 0 && (
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     {topThree.map((p) => {
-                        const medal = p.rank === 1 ? '🥇' : p.rank === 2 ? '🥈' : '🥉';
+                        const rankColor =
+                            p.rank === 1
+                                ? 'text-amber-400'
+                                : p.rank === 2
+                                    ? 'text-slate-300'
+                                    : 'text-amber-600';
                         return (
                             <div
                                 key={p.userId}
@@ -160,20 +165,27 @@ export default function GlobalLeaderboard() {
                                     }`}
                             >
                                 <div className="flex items-center justify-between gap-2">
-                                    <span className="text-lg font-bold font-mono text-text-primary">
-                                        {medal} #{p.rank}
+                                    <span className={`text-lg font-bold font-mono ${rankColor}`}>
+                                        #{p.rank}
                                     </span>
                                     <LeagueBadge league={p.league} />
                                 </div>
-                                <div className="flex items-center gap-3">
+                                <Link
+                                    href={`/u/${p.username}`}
+                                    className="flex items-center gap-3 group no-underline"
+                                >
                                     <Avatar username={p.username} avatarUrl={p.avatarUrl} size="lg" />
                                     <div className="min-w-0">
-                                        <p className="text-base font-bold text-text-primary truncate">@{p.username}</p>
-                                        <p className="text-xs text-text-muted truncate">
-                                            {p.institution || 'Independent Coder'}
+                                        <p className="text-base font-bold text-text-primary group-hover:text-navy transition-colors truncate">
+                                            @{p.username}
                                         </p>
+                                        {p.institution && (
+                                            <p className="text-xs text-text-muted truncate">
+                                                {p.institution}
+                                            </p>
+                                        )}
                                     </div>
-                                </div>
+                                </Link>
                                 <div className="grid grid-cols-3 gap-2 pt-2 border-t border-border text-center text-xs">
                                     <div>
                                         <p className="font-mono font-bold text-text-primary text-sm">{p.totalSolved}</p>
@@ -199,10 +211,17 @@ export default function GlobalLeaderboard() {
                 <div className="p-4 bg-info-bg/50 border border-info/30 rounded-lg flex flex-wrap items-center justify-between gap-4">
                     <div className="flex items-center gap-3">
                         <span className="text-base font-mono font-bold text-info">#{myRank.rank}</span>
-                        <Avatar username={myRank.username} avatarUrl={myRank.avatarUrl} />
+                        <Link href={`/u/${myRank.username}`} className="no-underline">
+                            <Avatar username={myRank.username} avatarUrl={myRank.avatarUrl} />
+                        </Link>
                         <div>
                             <div className="flex items-center gap-2">
-                                <span className="text-sm font-bold text-text-primary">@{myRank.username} (You)</span>
+                                <Link
+                                    href={`/u/${myRank.username}`}
+                                    className="text-sm font-bold text-text-primary hover:text-navy transition-colors no-underline"
+                                >
+                                    @{myRank.username} (You)
+                                </Link>
                                 <LeagueBadge league={myRank.league} />
                             </div>
                             <p className="text-xs text-text-secondary mt-0.5">
@@ -268,8 +287,8 @@ export default function GlobalLeaderboard() {
                                 setPage(1);
                             }}
                             className={`px-3 py-1.5 font-medium ${sortBy === tab.key
-                                ? 'bg-navy text-white'
-                                : 'bg-bg-section text-text-secondary hover:text-text-primary'
+                                    ? 'bg-navy text-white'
+                                    : 'bg-bg-section text-text-secondary hover:text-text-primary'
                                 }`}
                         >
                             {tab.label}
@@ -316,10 +335,13 @@ export default function GlobalLeaderboard() {
                                             #{row.displayRank}
                                         </td>
                                         <td className="px-4 py-3">
-                                            <div className="flex items-center gap-2.5">
+                                            <Link
+                                                href={`/u/${row.username}`}
+                                                className="flex items-center gap-2.5 group no-underline"
+                                            >
                                                 <Avatar username={row.username} avatarUrl={row.avatarUrl} />
                                                 <div className="min-w-0">
-                                                    <p className="font-semibold text-text-primary truncate">
+                                                    <p className="font-semibold text-text-primary group-hover:text-navy transition-colors truncate">
                                                         @{row.username}{' '}
                                                         {isMe && <span className="text-[11px] text-info font-medium">(You)</span>}
                                                     </p>
@@ -327,7 +349,7 @@ export default function GlobalLeaderboard() {
                                                         <p className="text-xs text-text-muted truncate">{row.institution}</p>
                                                     )}
                                                 </div>
-                                            </div>
+                                            </Link>
                                         </td>
                                         <td className="px-4 py-3">
                                             <LeagueBadge league={row.league} />

@@ -72,6 +72,10 @@ model User {
   updatedAt           DateTime  @updatedAt
   rating              Int       @default(1200)
   maxRating           Int       @default(1200)
+  isBanned            Boolean   @default(false)
+  bannedUntil         DateTime?
+  banReason           String?
+  isProfileHidden     Boolean   @default(false)
 
   authSessions         AuthSession[]
   bookmarks            Bookmark[]
@@ -212,6 +216,8 @@ model ContestRegistration {
   userId       String
   contestId    Int
   registeredAt DateTime @default(now())
+  isDisqualified      Boolean   @default(false)
+  disqualifiedReason  String?
 
   user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
   contest Contest @relation(fields: [contestId], references: [id], onDelete: Cascade)

@@ -5,6 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
 import { resolveAssetUrl } from '@/lib/api';
+import SocialNavBadge from '@/components/SocialNavBadge';
 
 export default function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -158,13 +159,14 @@ export default function Header() {
                     key={link.href}
                     href={link.href}
                     prefetch={link.prefetch}
-                    className={`text-small-lg font-medium transition-colors relative no-underline ${active
+                    className={`inline-flex items-center text-small-lg font-medium transition-colors relative no-underline ${active
                       ? 'text-text-primary'
                       : 'text-text-secondary hover:text-text-primary'
                       }`}
                     aria-current={active ? 'page' : undefined}
                   >
                     {link.label}
+                    {link.href === '/social' && <SocialNavBadge />}
                     {active && (
                       <span
                         className="absolute bottom-[-4px] left-0 right-0 h-0.5 bg-navy rounded-full"
@@ -355,7 +357,7 @@ export default function Header() {
                     key={link.href}
                     href={link.href}
                     prefetch={link.prefetch}
-                    className={`px-2 py-3 text-body-lg rounded-lg transition-colors no-underline ${active
+                    className={`flex items-center px-2 py-3 text-body-lg rounded-lg transition-colors no-underline ${active
                       ? 'bg-bg-section text-text-primary font-medium'
                       : 'text-text-secondary hover:text-text-primary hover:bg-bg-section'
                       }`}
@@ -363,6 +365,7 @@ export default function Header() {
                     aria-current={active ? 'page' : undefined}
                   >
                     {link.label}
+                    {link.href === '/social' && <SocialNavBadge />}
                   </Link>
                 );
               })}

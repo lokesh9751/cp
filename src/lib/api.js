@@ -613,3 +613,60 @@ export async function deleteChatMessageApi(messageId, accessToken) {
   });
   return data.message;
 }
+
+// --- Moderation & Rating APIs ---
+
+export async function adminFinalizeContestRatings(contestId, accessToken) {
+  const { data } = await apiRequest(`/api/moderation/contests/${contestId}/finalize`, {
+    method: 'POST',
+    headers: authHeaders(accessToken),
+  });
+  return data;
+}
+
+export async function adminDisqualifyParticipant(contestId, userId, reason, accessToken) {
+  const { data } = await apiRequest(`/api/moderation/contests/${contestId}/disqualify`, {
+    method: 'POST',
+    headers: authHeaders(accessToken),
+    body: JSON.stringify({ userId, reason }),
+  });
+  return data;
+}
+
+export async function adminRemoveContestRating(contestId, userId, accessToken) {
+  const { data } = await apiRequest(
+    `/api/moderation/contests/${contestId}/ratings/${userId}`,
+    {
+      method: 'DELETE',
+      headers: authHeaders(accessToken),
+    }
+  );
+  return data;
+}
+
+export async function superuserUpdateBan(userId, payload, accessToken) {
+  // payload: { action: 'PERMANENT' | 'TEMP' | 'UNBAN', durationHours?, reason? }
+  const { data } = await apiRequest(`/api/moderation/users/${userId}/ban`, {
+    method: 'PATCH',
+    headers: authHeaders(accessToken),
+    body: JSON.stringify(payload),
+  });
+  return data.user;
+}
+
+export async function superuserDeleteUser(userId, accessToken) {
+  const { data } = await apiRequest(`/api/moderation/users/${userId}`, {
+    method: 'DELETE',
+    headers: authHeaders(accessToken),
+  });
+  return data;
+}
+
+export async function superuserToggleStealth(isProfileHidden, accessToken) {
+  const { data } = await apiRequest('/api/moderation/me/stealth', {
+    method: 'PATCH',
+    headers: authHeaders(accessToken),
+    body: JSON.stringify({ isProfileHidden }),
+  });
+  return data.user;
+}

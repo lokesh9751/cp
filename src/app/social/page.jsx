@@ -126,6 +126,7 @@ export default function SocialPage() {
                         f.user.id === friendUser.id ? { ...f, unreadCount: 0 } : f
                     ),
                 }));
+                window.dispatchEvent(new Event('social-badge-refresh'));
             } catch (err) {
                 setError(err?.message || 'Unable to load messages.');
             } finally {
@@ -206,8 +207,13 @@ export default function SocialPage() {
                                 setMessages((prev) =>
                                     prev.some((m) => m.id === msg.id) ? prev : [...prev, msg]
                                 );
+                                // Active chat khuli hai toh backend par bhi read mark kar do
+                                if (msg.senderId === current.id) {
+                                    loadMessages(current);
+                                }
                             }
                             loadOverview();
+                            window.dispatchEvent(new Event('social-badge-refresh'));
                         } else if (
                             (eventName === 'message_updated' || eventName === 'message_deleted') &&
                             payload?.message
@@ -278,6 +284,7 @@ export default function SocialPage() {
         try {
             await runAuthed((token) => respondFriendRequestApi(friendshipId, action, token));
             loadOverview();
+            window.dispatchEvent(new Event('social-badge-refresh'));
         } catch (err) {
             setError(err?.message || 'Failed to update request.');
         }
@@ -359,6 +366,10 @@ export default function SocialPage() {
         );
     }
 
+    const unreadChatsCount = (overview.friends || []).reduce(
+        (sum, f) => sum + (f.unreadCount || 0),
+        0
+    );
     const incomingCount = overview.incomingRequests?.length || 0;
 
     return (
@@ -381,18 +392,18 @@ export default function SocialPage() {
                                 type="button"
                                 onClick={() => setTab('chats')}
                                 className={`py-1.5 text-xs font-medium rounded-md transition-colors ${tab === 'chats'
-                                        ? 'bg-navy text-white'
-                                        : 'text-text-secondary hover:text-text-primary'
+                                    ? 'bg-navy text-white'
+                                    : 'text-text-secondary hover:text-text-primary'
                                     }`}
                             >
-                                Chats ({overview.friends.length})
+                                Chats{unreadChatsCount > 0 ? ` (${unreadChatsCount})` : ''}
                             </button>
                             <button
                                 type="button"
                                 onClick={() => setTab('requests')}
                                 className={`py-1.5 text-xs font-medium rounded-md transition-colors ${tab === 'requests'
-                                        ? 'bg-navy text-white'
-                                        : 'text-text-secondary hover:text-text-primary'
+                                    ? 'bg-navy text-white'
+                                    : 'text-text-secondary hover:text-text-primary'
                                     }`}
                             >
                                 Requests{incomingCount > 0 ? ` (${incomingCount})` : ''}
@@ -401,8 +412,8 @@ export default function SocialPage() {
                                 type="button"
                                 onClick={() => setTab('add')}
                                 className={`py-1.5 text-xs font-medium rounded-md transition-colors ${tab === 'add'
-                                        ? 'bg-navy text-white'
-                                        : 'text-text-secondary hover:text-text-primary'
+                                    ? 'bg-navy text-white'
+                                    : 'text-text-secondary hover:text-text-primary'
                                     }`}
                             >
                                 Add friend
@@ -664,10 +675,10 @@ export default function SocialPage() {
                                             >
                                                 <div
                                                     className={`max-w-[78%] rounded-lg px-3.5 py-2 border ${msg.isDeleted
-                                                            ? 'bg-bg-section border-border text-text-muted italic'
-                                                            : isMine
-                                                                ? 'bg-navy text-white border-navy'
-                                                                : 'bg-bg-card text-text-primary border-border'
+                                                        ? 'bg-bg-section border-border text-text-muted italic'
+                                                        : isMine
+                                                            ? 'bg-navy text-white border-navy'
+                                                            : 'bg-bg-card text-text-primary border-border'
                                                         }`}
                                                 >
                                                     {msg.isDeleted ? (
