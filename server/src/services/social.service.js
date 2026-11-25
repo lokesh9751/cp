@@ -67,7 +67,11 @@ export async function searchUsersForFriend(currentUserId, query) {
 }
 
 export async function getSocialOverview(currentUserId) {
-    const [friendships, unreadGroups] = await Promise.all([
+    const [currentUser, friendships, unreadGroups] = await Promise.all([
+        prisma.user.findUnique({
+            where: { id: currentUserId },
+            select: { role: true },
+        }),
         prisma.friendship.findMany({
             where: {
                 OR: [{ requesterId: currentUserId }, { addresseeId: currentUserId }],
@@ -90,9 +94,11 @@ export async function getSocialOverview(currentUserId) {
         }),
     ]);
 
+    const isSuperuser = currentUser?.role === 'SUPERUSER';
     const unreadMap = new Map(unreadGroups.map((g) => [g.senderId, g._count.id]));
 
     const friends = [];
+    const friendIdSet = new Set();
     const incomingRequests = [];
     const outgoingRequests = [];
 
@@ -101,11 +107,13 @@ export async function getSocialOverview(currentUserId) {
         const otherUser = isRequester ? f.addressee : f.requester;
 
         if (f.status === 'ACCEPTED') {
+            friendIdSet.add(otherUser.id);
             friends.push({
                 friendshipId: f.id,
                 user: otherUser,
                 unreadCount: unreadMap.get(otherUser.id) || 0,
                 since: f.updatedAt,
+                isDirectSuperuser: false,
             });
         } else if (f.status === 'PENDING') {
             const reqItem = {
@@ -118,18 +126,52 @@ export async function getSocialOverview(currentUserId) {
         }
     }
 
-    // Fetch last message per friend for chat list preview
-    const friendIds = friends.map((f) => f.user.id);
-    if (friendIds.length > 0) {
+    // Superuser ke direct chats (bina friend add kiye)
+    // Normal user ko bhi tabhi dikhega jab kisi SUPERUSER ne usse msg kiya ho
+    const directMsgs = await prisma.message.findMany({
+        where: isSuperuser
+            ? { OR: [{ senderId: currentUserId }, { receiverId: currentUserId }] }
+            : {
+                OR: [
+                    { receiverId: currentUserId, sender: { role: 'SUPERUSER' } },
+                    { senderId: currentUserId, receiver: { role: 'SUPERUSER' } },
+                ],
+            },
+        orderBy: { createdAt: 'desc' },
+        take: 100,
+        include: {
+            sender: { select: USER_PUBLIC_SELECT },
+            receiver: { select: USER_PUBLIC_SELECT },
+        },
+    });
+
+    const addedDirect = new Set();
+    for (const m of directMsgs) {
+        const other = m.senderId === currentUserId ? m.receiver : m.sender;
+        if (other && other.id !== currentUserId && !friendIdSet.has(other.id) && !addedDirect.has(other.id)) {
+            addedDirect.add(other.id);
+            friends.push({
+                friendshipId: `direct-${other.id}`,
+                user: other,
+                unreadCount: unreadMap.get(other.id) || 0,
+                since: m.createdAt,
+                isDirectSuperuser: true,
+            });
+        }
+    }
+
+    // Last message preview for sidebar
+    const chatPartnerIds = friends.map((f) => f.user.id);
+    if (chatPartnerIds.length > 0) {
         const recentMsgs = await prisma.message.findMany({
             where: {
                 OR: [
-                    { senderId: currentUserId, receiverId: { in: friendIds } },
-                    { senderId: { in: friendIds }, receiverId: currentUserId },
+                    { senderId: currentUserId, receiverId: { in: chatPartnerIds } },
+                    { senderId: { in: chatPartnerIds }, receiverId: currentUserId },
                 ],
             },
             orderBy: { createdAt: 'desc' },
-            take: 200,
+            take: 250,
         });
 
         const lastMsgMap = new Map();
@@ -150,7 +192,6 @@ export async function getSocialOverview(currentUserId) {
             f.lastMessage = lastMsgMap.get(f.user.id) || null;
         }
 
-        // Sort friends by most recent message activity
         friends.sort((a, b) => {
             const tA = new Date(a.lastMessage?.createdAt || a.since).getTime();
             const tB = new Date(b.lastMessage?.createdAt || b.since).getTime();
@@ -158,7 +199,7 @@ export async function getSocialOverview(currentUserId) {
         });
     }
 
-    return { friends, incomingRequests, outgoingRequests };
+    return { friends, incomingRequests, outgoingRequests, isSuperuser };
 }
 
 export async function sendFriendRequest(currentUserId, targetUserId) {
@@ -189,7 +230,6 @@ export async function sendFriendRequest(currentUserId, targetUserId) {
         }
         if (existing.status === 'PENDING') {
             if (existing.requesterId === targetUserId) {
-                // Auto-accept if they already sent you a request
                 return prisma.friendship.update({
                     where: { id: existing.id },
                     data: { status: 'ACCEPTED' },
@@ -197,7 +237,6 @@ export async function sendFriendRequest(currentUserId, targetUserId) {
             }
             throw createError(409, 'ALREADY_SENT', 'Friend request already sent');
         }
-        // Re-send if previously rejected
         return prisma.friendship.update({
             where: { id: existing.id },
             data: {
@@ -261,7 +300,33 @@ export async function removeFriend(currentUserId, friendUserId) {
     return { removedUserId: friendUserId };
 }
 
-async function assertAreFriends(userA, userB) {
+async function assertCanChat(userA, userB) {
+    if (userA === userB) {
+        throw createError(400, 'VALIDATION_ERROR', 'You cannot message yourself');
+    }
+
+    const [sender, receiver] = await Promise.all([
+        prisma.user.findUnique({ where: { id: userA }, select: { id: true, role: true } }),
+        prisma.user.findUnique({ where: { id: userB }, select: { id: true, role: true, isBanned: true } }),
+    ]);
+
+    if (!sender || !receiver || receiver.isBanned) {
+        throw createError(404, 'NOT_FOUND', 'User not found');
+    }
+
+    // 1. Superuser kisi ko bhi direct message kar sakta hai
+    if (sender.role === 'SUPERUSER') return;
+
+    // 2. Normal user sirf tab Superuser ko reply kar sakta hai jab Superuser ne pehle msg bheja ho
+    if (receiver.role === 'SUPERUSER') {
+        const superuserInitiated = await prisma.message.findFirst({
+            where: { senderId: userB, receiverId: userA },
+            select: { id: true },
+        });
+        if (superuserInitiated) return;
+    }
+
+    // 3. Baaki sabke liye normal ACCEPTED friendship required
     const friendship = await prisma.friendship.findFirst({
         where: {
             status: 'ACCEPTED',
@@ -271,15 +336,15 @@ async function assertAreFriends(userA, userB) {
             ],
         },
     });
+
     if (!friendship) {
         throw createError(403, 'NOT_FRIENDS', 'You can only chat with accepted friends');
     }
 }
 
 export async function getConversationMessages(currentUserId, friendUserId) {
-    await assertAreFriends(currentUserId, friendUserId);
+    await assertCanChat(currentUserId, friendUserId);
 
-    // Mark incoming messages as read
     await prisma.message.updateMany({
         where: {
             senderId: friendUserId,
@@ -307,7 +372,7 @@ export async function getConversationMessages(currentUserId, friendUserId) {
 }
 
 export async function sendChatMessage(currentUserId, friendUserId, content) {
-    await assertAreFriends(currentUserId, friendUserId);
+    await assertCanChat(currentUserId, friendUserId);
 
     const trimmed = String(content || '').trim();
     if (!trimmed || trimmed.length > 2000) {

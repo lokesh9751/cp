@@ -60,6 +60,7 @@ export default function SocialPage() {
         friends: [],
         incomingRequests: [],
         outgoingRequests: [],
+        isSuperuser: false,
     });
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
@@ -79,8 +80,9 @@ export default function SocialPage() {
     // Edit message state
     const [editingId, setEditingId] = useState(null);
     const [editDraft, setEditDraft] = useState('');
+    const lastMessageId = messages[messages.length - 1]?.id;
 
-    const messagesEndRef = useRef(null);
+    const messagesContainerRef = useRef(null);
     const activeFriendRef = useRef(null);
     activeFriendRef.current = activeFriend;
 
@@ -113,13 +115,12 @@ export default function SocialPage() {
     }, [accessToken, runAuthed]);
 
     const loadMessages = useCallback(
-        async (friendUser) => {
+        async (friendUser, { silent = false } = {}) => {
             if (!friendUser || !accessToken) return;
-            setMessagesLoading(true);
+            if (!silent) setMessagesLoading(true);
             try {
                 const list = await runAuthed((token) => getChatMessages(friendUser.id, token));
                 setMessages(list);
-                // Clear unread count locally for this friend
                 setOverview((prev) => ({
                     ...prev,
                     friends: prev.friends.map((f) =>
@@ -128,9 +129,9 @@ export default function SocialPage() {
                 }));
                 window.dispatchEvent(new Event('social-badge-refresh'));
             } catch (err) {
-                setError(err?.message || 'Unable to load messages.');
+                if (!silent) setError(err?.message || 'Unable to load messages.');
             } finally {
-                setMessagesLoading(false);
+                if (!silent) setMessagesLoading(false);
             }
         },
         [accessToken, runAuthed]
@@ -145,10 +146,18 @@ export default function SocialPage() {
         loadOverview();
     }, [authLoading, user?.id, accessToken, loadOverview]);
 
-    // Auto-scroll to latest message
+    // Auto-scroll only inside the messages container (page stays stable)
     useEffect(() => {
-        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }, [messages.length, activeFriend?.id]);
+        if (messagesLoading || !activeFriend) return;
+        const el = messagesContainerRef.current;
+        if (!el) return;
+
+        const frame = requestAnimationFrame(() => {
+            el.scrollTop = el.scrollHeight;
+        });
+
+        return () => cancelAnimationFrame(frame);
+    }, [lastMessageId, messages.length, messagesLoading, activeFriend?.id]);
 
     // Live SSE stream using fetch (supports Bearer token)
     useEffect(() => {
@@ -207,9 +216,8 @@ export default function SocialPage() {
                                 setMessages((prev) =>
                                     prev.some((m) => m.id === msg.id) ? prev : [...prev, msg]
                                 );
-                                // Active chat khuli hai toh backend par bhi read mark kar do
                                 if (msg.senderId === current.id) {
-                                    loadMessages(current);
+                                    loadMessages(current, { silent: true });
                                 }
                             }
                             loadOverview();
@@ -233,7 +241,7 @@ export default function SocialPage() {
 
         connectStream();
         return () => controller.abort();
-    }, [user?.id, accessToken, loadOverview]);
+    }, [user?.id, accessToken, loadOverview, loadMessages]);
 
     // Debounced user search for Add Friend tab
     useEffect(() => {
@@ -590,27 +598,41 @@ export default function SocialPage() {
                                                     </div>
                                                 </Link>
 
-                                                {u.relationStatus === 'FRIENDS' ? (
-                                                    <span className="text-xs text-text-muted px-2">Friends</span>
-                                                ) : u.relationStatus === 'OUTGOING_PENDING' ? (
-                                                    <span className="text-xs text-text-muted px-2">Requested</span>
-                                                ) : u.relationStatus === 'INCOMING_PENDING' ? (
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => handleRespondRequest(u.friendshipId, 'ACCEPT')}
-                                                        className="px-2.5 py-1 text-xs font-medium bg-navy text-white rounded-md"
-                                                    >
-                                                        Accept
-                                                    </button>
-                                                ) : (
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => handleSendRequest(u.id)}
-                                                        className="px-2.5 py-1 text-xs font-medium bg-navy text-white hover:bg-navy-hover rounded-md"
-                                                    >
-                                                        Add
-                                                    </button>
-                                                )}
+                                                <div className="flex items-center gap-1.5 shrink-0">
+                                                    {(user?.role === 'SUPERUSER' || overview.isSuperuser) && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => {
+                                                                setTab('chats');
+                                                                handleSelectFriend(u);
+                                                            }}
+                                                            className="px-2.5 py-1 text-xs font-medium border border-border text-text-primary hover:bg-bg-card rounded-md"
+                                                        >
+                                                            Message
+                                                        </button>
+                                                    )}
+                                                    {u.relationStatus === 'FRIENDS' ? (
+                                                        <span className="text-xs text-text-muted px-2">Friends</span>
+                                                    ) : u.relationStatus === 'OUTGOING_PENDING' ? (
+                                                        <span className="text-xs text-text-muted px-2">Requested</span>
+                                                    ) : u.relationStatus === 'INCOMING_PENDING' ? (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleRespondRequest(u.friendshipId, 'ACCEPT')}
+                                                            className="px-2.5 py-1 text-xs font-medium bg-navy text-white rounded-md"
+                                                        >
+                                                            Accept
+                                                        </button>
+                                                    ) : (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleSendRequest(u.id)}
+                                                            className="px-2.5 py-1 text-xs font-medium bg-navy text-white hover:bg-navy-hover rounded-md"
+                                                        >
+                                                            Add
+                                                        </button>
+                                                    )}
+                                                </div>
                                             </div>
                                         ))}
                                     </div>
@@ -646,17 +668,22 @@ export default function SocialPage() {
                                     </div>
                                 </Link>
 
-                                <button
-                                    type="button"
-                                    onClick={() => handleRemoveFriend(activeFriend.id)}
-                                    className="px-3 py-1.5 text-xs font-medium border border-border text-text-secondary hover:text-error hover:bg-bg-section rounded-lg transition-colors"
-                                >
-                                    Remove friend
-                                </button>
+                                {overview.friends.some((f) => f.user.id === activeFriend.id && !f.isDirectSuperuser) && (
+                                    <button
+                                        type="button"
+                                        onClick={() => handleRemoveFriend(activeFriend.id)}
+                                        className="px-3 py-1.5 text-xs font-medium border border-border text-text-secondary hover:text-error hover:bg-bg-section rounded-lg transition-colors"
+                                    >
+                                        Remove friend
+                                    </button>
+                                )}
                             </div>
 
                             {/* Messages Feed */}
-                            <div className="flex-1 min-h-0 overflow-y-auto p-5 space-y-3 bg-bg-page/40">
+                            <div
+                                ref={messagesContainerRef}
+                                className="flex-1 min-h-0 overflow-y-auto p-5 space-y-3 bg-bg-page/40"
+                            >
                                 {messagesLoading ? (
                                     <p className="text-center text-small text-text-muted">Loading messages...</p>
                                 ) : messages.length === 0 ? (
@@ -749,7 +776,6 @@ export default function SocialPage() {
                                         );
                                     })
                                 )}
-                                <div ref={messagesEndRef} />
                             </div>
 
                             {/* Message Input */}
