@@ -123,7 +123,31 @@ export async function uploadAvatar(req, res, next) {
             });
         }
 
-        const avatarUrl = await processAndSaveAvatar(req.file.buffer, req.user.id);
+        let crop = null;
+        if (req.body?.crop) {
+            try {
+                const parsed = JSON.parse(req.body.crop);
+                if (
+                    Number.isFinite(parsed?.x) &&
+                    Number.isFinite(parsed?.y) &&
+                    Number.isFinite(parsed?.width) &&
+                    Number.isFinite(parsed?.height) &&
+                    parsed.width > 0 &&
+                    parsed.height > 0
+                ) {
+                    crop = parsed;
+                }
+            } catch {
+                // Ignore malformed crop payload
+            }
+        }
+
+        const avatarUrl = await processAndSaveAvatar(
+            req.file.buffer,
+            req.user.id,
+            req.file.mimetype,
+            crop
+        );
         const savedUrl = await setUserAvatar(req.user.id, avatarUrl);
 
         res.json({ avatarUrl: savedUrl });

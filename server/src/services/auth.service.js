@@ -5,41 +5,48 @@ import { generateAccessToken, generateRefreshToken } from '../lib/jwt.js';
 
 const BCRYPT_SALT_ROUNDS = 10;
 
-/**
- * Hash a password
- * @param {string} password - Plain text password
- * @returns {Promise<string>} Hashed password
- */
 export async function hashPassword(password) {
   return bcrypt.hash(password, BCRYPT_SALT_ROUNDS);
 }
 
-/**
- * Compare a password with its hash
- * @param {string} password - Plain text password
- * @param {string} hash - Hashed password
- * @returns {Promise<boolean>} True if match
- */
 export async function comparePassword(password, hash) {
   return bcrypt.compare(password, hash);
 }
 
-/**
- * Hash a refresh token using SHA-256
- * @param {string} token - Raw refresh token
- * @returns {string} Hashed token
- */
 export function hashRefreshToken(token) {
   return crypto.createHash('sha256').update(token).digest('hex');
 }
 
 /**
- * Create a new user
- * @param {string} username - Username
- * @param {string} email - Email
- * @param {string} passwordHash - Hashed password
- * @returns {Promise<User>} Created user
+ * Checks if a user is currently banned.
+ * Auto-unbans if a temporary ban has expired.
+ * @returns {Promise<{ banned: boolean, message?: string }>}
  */
+export async function checkUserBanStatus(user) {
+  if (!user?.isBanned) {
+    return { banned: false };
+  }
+
+  const now = new Date();
+  if (user.bannedUntil && new Date(user.bannedUntil) <= now) {
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { isBanned: false, bannedUntil: null, banReason: null },
+    });
+    return { banned: false };
+  }
+
+  const untilText = user.bannedUntil
+    ? ` until ${new Date(user.bannedUntil).toLocaleString('en-IN')}`
+    : ' permanently';
+  const reasonText = user.banReason ? ` Reason: ${user.banReason}` : '';
+
+  return {
+    banned: true,
+    message: `Your account is banned${untilText}.${reasonText}`,
+  };
+}
+
 export async function createUser(username, email, passwordHash) {
   const user = await prisma.user.create({
     data: {
@@ -62,11 +69,6 @@ export async function createUser(username, email, passwordHash) {
   return user;
 }
 
-/**
- * Find user by email or username
- * @param {string} identifier - Email or username
- * @returns {Promise<User | null>} User or null
- */
 export async function findUserByIdentifier(identifier) {
   const user = await prisma.user.findFirst({
     where: {
@@ -80,11 +82,6 @@ export async function findUserByIdentifier(identifier) {
   return user;
 }
 
-/**
- * Find user by ID
- * @param {string} userId - User ID
- * @returns {Promise<User | null>} User or null
- */
 export async function findUserById(userId) {
   const user = await prisma.user.findUnique({
     where: { id: userId },
@@ -102,11 +99,6 @@ export async function findUserById(userId) {
   return user;
 }
 
-/**
- * Create a refresh token session
- * @param {string} userId - User ID
- * @returns {Promise<{token: string, sessionId: string}>} Refresh token and session ID
- */
 export async function createSession(userId) {
   const sessionId = crypto.randomUUID();
   const rawToken = generateRefreshToken(userId, sessionId);
@@ -125,11 +117,6 @@ export async function createSession(userId) {
   return { token: rawToken, sessionId };
 }
 
-/**
- * Find valid session by refresh token hash
- * @param {string} tokenHash - Hashed refresh token
- * @returns {Promise<{session: object, user: object}| null}> Session and user or null
- */
 export async function findValidSession(tokenHash) {
   const session = await prisma.authSession.findFirst({
     where: {
@@ -143,28 +130,16 @@ export async function findValidSession(tokenHash) {
   return session;
 }
 
-/**
- * Rotate refresh token (for secure token rotation)
- * @param {string} oldSessionId - Old session ID
- * @param {string} userId - User ID
- * @returns {Promise<{token: string, sessionId: string}>} New refresh token and session ID
- */
 export async function rotateSession(oldSessionId, userId) {
-  // Revoke old session
   await prisma.authSession.update({
     where: { id: oldSessionId },
     data: { revokedAt: new Date() },
   });
 
-  // Create new session
   const { token, sessionId } = await createSession(userId);
   return { token, sessionId };
 }
 
-/**
- * Revoke a session
- * @param {string} sessionId - Session ID
- */
 export async function revokeSession(sessionId) {
   await prisma.authSession.updateMany({
     where: { id: sessionId },
@@ -172,10 +147,6 @@ export async function revokeSession(sessionId) {
   });
 }
 
-/**
- * Revoke all sessions for a user
- * @param {string} userId - User ID
- */
 export async function revokeAllSessions(userId) {
   await prisma.authSession.updateMany({
     where: {
@@ -186,9 +157,6 @@ export async function revokeAllSessions(userId) {
   });
 }
 
-/**
- * Clear expired sessions (cleanup)
- */
 export async function cleanupExpiredSessions() {
   await prisma.authSession.deleteMany({
     where: {
@@ -196,12 +164,6 @@ export async function cleanupExpiredSessions() {
     },
   });
 }
-
-/**
- * Get safe user response
- * @param {User | object} user - User object
- * @returns {object} Safe user data
- */
 
 export function getSafeUserResponse(user) {
   return {

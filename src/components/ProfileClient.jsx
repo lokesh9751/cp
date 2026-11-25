@@ -17,6 +17,7 @@ import {
 import { useAuth } from '@/context/AuthContext';
 import ActivityHeatmap from '@/components/ActivityHeatmap';
 import RatingProgressChart from '@/components/RatingProgressChart';
+import AvatarCropModal from '@/components/AvatarCropModal';
 
 const SOCIAL_FIELDS = [
     { key: 'github', label: 'GitHub', placeholder: 'https://github.com/username' },
@@ -106,11 +107,21 @@ export default function ProfileClient() {
 
     const [avatarBusy, setAvatarBusy] = useState(false);
     const [avatarError, setAvatarError] = useState(null);
+    const [cropImageSrc, setCropImageSrc] = useState(null);
+    const [pendingFile, setPendingFile] = useState(null);
     const fileInputRef = useRef(null);
 
     const [togglePending, setTogglePending] = useState(false);
     const [toggleError, setToggleError] = useState(null);
     const [stealthBusy, setStealthBusy] = useState(false);
+
+
+    // Cleanup object URL if modal unmounts
+    useEffect(() => {
+        return () => {
+            if (cropImageSrc) URL.revokeObjectURL(cropImageSrc);
+        };
+    }, [cropImageSrc]);
 
     // Execute authenticated API call with automatic 1-time refresh on 401
     const runAuthed = useCallback(
@@ -151,7 +162,7 @@ export default function ProfileClient() {
         });
     }, []);
 
-    // Load profile + countries once auth finishes  
+    // Load profile + countries once auth finishes
     const loadInitialData = useCallback(async () => {
         if (!accessToken) return;
         setLoading(true);
@@ -284,8 +295,33 @@ export default function ProfileClient() {
         }
     };
 
-    // Upload avatar image
-    const handleAvatarFileChange = async (e) => {
+    // Upload avatar file to backend
+    const uploadAvatarFile = async (file, crop = null) => {
+        setAvatarBusy(true);
+        setAvatarError(null);
+        try {
+            const { avatarUrl } = await runAuthed((token) =>
+                uploadProfileAvatar(file, token, crop)
+            );
+            setProfile((prev) => (prev ? { ...prev, avatarUrl } : prev));
+            updateUser?.({ avatarUrl });
+            if (cropImageSrc) {
+                URL.revokeObjectURL(cropImageSrc);
+                setCropImageSrc(null);
+            }
+            setPendingFile(null);
+        } catch (err) {
+            if (err?.status === 401) {
+                router.push('/login');
+                return;
+            }
+            setAvatarError(err?.message || 'Failed to upload profile photo.');
+        } finally {
+            setAvatarBusy(false);
+        }
+    };
+
+    const handleAvatarFileChange = (e) => {
         const file = e.target.files?.[0];
         e.target.value = '';
         if (!file) return;
@@ -297,25 +333,25 @@ export default function ProfileClient() {
             return;
         }
 
-        if (file.size > 2 * 1024 * 1024) {
-            setAvatarError('Image must be 2 MB or smaller.');
+        const maxBytes = file.type === 'image/gif' ? 8 * 1024 * 1024 : 10 * 1024 * 1024;
+        if (file.size > maxBytes) {
+            setAvatarError(
+                file.type === 'image/gif'
+                    ? 'GIF must be 8 MB or smaller.'
+                    : 'Image must be 10 MB or smaller.'
+            );
             return;
         }
 
-        setAvatarBusy(true);
-        try {
-            const { avatarUrl } = await runAuthed((token) => uploadProfileAvatar(file, token));
-            setProfile((prev) => (prev ? { ...prev, avatarUrl } : prev));
-            updateUser?.({ avatarUrl });
-        } catch (err) {
-            if (err?.status === 401) {
-                router.push('/login');
-                return;
-            }
-            setAvatarError(err?.message || 'Failed to upload profile photo.');
-        } finally {
-            setAvatarBusy(false);
-        }
+        if (cropImageSrc) URL.revokeObjectURL(cropImageSrc);
+        setPendingFile(file);
+        setCropImageSrc(URL.createObjectURL(file));
+    };
+
+    const handleCloseCropModal = () => {
+        if (cropImageSrc) URL.revokeObjectURL(cropImageSrc);
+        setCropImageSrc(null);
+        setPendingFile(null);
     };
 
     // Remove avatar image
@@ -341,22 +377,6 @@ export default function ProfileClient() {
 
     // Instant toggle for showing solved questions on profile
     const handleToggleSolvedVisibility = async () => {
-
-        const handleToggleStealth = async () => {
-            if (stealthBusy || !profile) return;
-            const previous = Boolean(profile.isProfileHidden);
-            const nextValue = !previous;
-
-            setStealthBusy(true);
-            setProfile((prev) => (prev ? { ...prev, isProfileHidden: nextValue } : prev));
-            try {
-                await runAuthed((token) => superuserToggleStealth(nextValue, token));
-            } catch {
-                setProfile((prev) => (prev ? { ...prev, isProfileHidden: previous } : prev));
-            } finally {
-                setStealthBusy(false);
-            }
-        };
         if (togglePending || !profile) return;
 
         const previous = Boolean(profile.showSolvedQuestions);
@@ -463,6 +483,17 @@ export default function ProfileClient() {
 
     return (
         <div className="max-w-4xl mx-auto space-y-6">
+            {/* Avatar Crop Modal */}
+            {cropImageSrc && (
+                <AvatarCropModal
+                    imageSrc={cropImageSrc}
+                    originalFile={pendingFile}
+                    busy={avatarBusy}
+                    onCancel={handleCloseCropModal}
+                    onConfirm={uploadAvatarFile}
+                />
+            )}
+
             {/* Header / Profile Summary & Avatar Card */}
             <section className="bg-bg-card border border-border rounded-lg p-6">
                 <div className="flex flex-col sm:flex-row sm:items-center gap-6">

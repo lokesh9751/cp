@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
+import { GoogleLogin } from '@react-oauth/google';
 
 const PASSWORD_MAX_BYTES = 72;
 
@@ -26,7 +27,8 @@ export default function AuthForm({ mode = 'login' }) {
   const [error, setError] = useState('');
   const [fieldErrors, setFieldErrors] = useState({});
   const router = useRouter();
-  const { login, signup } = useAuth();
+  const { login, signup, googleLogin } = useAuth();
+
 
   const isSignup = mode === 'signup';
   const title = isSignup ? 'Create account' : 'Log in';
@@ -38,7 +40,7 @@ export default function AuthForm({ mode = 'login' }) {
     username.length <= 20 &&
     /^[a-z0-9_]+$/.test(username);
 
-  const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(identifier.trim());
+  const emailValid = /^[^\s@]+@gmail\.com$/i.test(identifier.trim());
 
   const passwordValid =
     password.length >= 8 &&
@@ -149,8 +151,8 @@ export default function AuthForm({ mode = 'login' }) {
                   required
                   autoComplete="username"
                   className={`w-full px-3.5 py-2 text-sm border rounded-lg bg-bg-input text-text-primary placeholder-text-muted focus:outline-none focus:ring-2 focus:ring-navy ${getFieldError(fieldErrors, 'username')
-                      ? 'border-red-500'
-                      : 'border-border'
+                    ? 'border-red-500'
+                    : 'border-border'
                     }`}
                   placeholder="jack_sparrow"
                 />
@@ -178,9 +180,9 @@ export default function AuthForm({ mode = 'login' }) {
                 required
                 autoComplete={isSignup ? 'email' : 'username'}
                 className={`w-full px-3.5 py-2 text-sm border rounded-lg bg-bg-input text-text-primary placeholder-text-muted focus:outline-none focus:ring-2 focus:ring-navy ${getFieldError(fieldErrors, 'email') ||
-                    getFieldError(fieldErrors, 'identifier')
-                    ? 'border-red-500'
-                    : 'border-border'
+                  getFieldError(fieldErrors, 'identifier')
+                  ? 'border-red-500'
+                  : 'border-border'
                   }`}
                 placeholder={
                   isSignup ? 'you@example.com' : 'you@example.com or username'
@@ -212,8 +214,8 @@ export default function AuthForm({ mode = 'login' }) {
                   required
                   autoComplete={isSignup ? 'new-password' : 'current-password'}
                   className={`w-full px-3.5 py-2 pr-11 text-sm border rounded-lg bg-bg-input text-text-primary placeholder-text-muted focus:outline-none focus:ring-2 focus:ring-navy ${getFieldError(fieldErrors, 'password')
-                      ? 'border-red-500'
-                      : 'border-border'
+                    ? 'border-red-500'
+                    : 'border-border'
                     }`}
                   placeholder="••••••••"
                 />
@@ -261,6 +263,34 @@ export default function AuthForm({ mode = 'login' }) {
                 : submitText}
             </button>
           </form>
+
+          {process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID && (
+            <div className="mt-5">
+              <div className="relative my-4">
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-full border-t border-border" />
+                </div>
+                <div className="relative flex justify-center text-xs">
+                  <span className="bg-bg-card px-2 text-text-muted">or continue with</span>
+                </div>
+              </div>
+              <div className="flex justify-center">
+                <GoogleLogin
+                  onSuccess={async (res) => {
+                    try {
+                      setError('');
+                      await googleLogin(res.credential);
+                      router.push('/problems');
+                    } catch (err) {
+                      setError(err?.message || 'Google sign-in failed');
+                    }
+                  }}
+                  onError={() => setError('Google sign-in failed')}
+                  useOneTap={false}
+                />
+              </div>
+            </div>
+          )}
 
           <div className="mt-6 text-center text-sm text-text-secondary">
             {isSignup ? 'Already have an account?' : "Don't have an account?"}{' '}

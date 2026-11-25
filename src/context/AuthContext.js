@@ -8,6 +8,8 @@ import {
   refreshAccessToken,
   getCurrentUser,
 } from '@/lib/api';
+import { GoogleOAuthProvider } from '@react-oauth/google';
+import { googleAuthApi } from '@/lib/api';
 
 export const AuthContext = createContext(null);
 
@@ -110,6 +112,17 @@ export function AuthProvider({ children }) {
     [storeAuthState]
   );
 
+  const googleLogin = useCallback(
+    async (credential) => {
+      const { user: loggedInUser, accessToken: newToken } = await googleAuthApi(credential);
+      setUser(loggedInUser);
+      setAccessToken(newToken);
+      storeAuthState(loggedInUser, newToken);
+      return { user: loggedInUser, accessToken: newToken };
+    },
+    [storeAuthState]
+  );
+
   const signup = useCallback(
     async ({ username, email, password }) => {
       const { user: newUser, accessToken: newToken } = await apiSignup({
@@ -185,21 +198,24 @@ export function AuthProvider({ children }) {
   );
 
   return (
-    <AuthContext.Provider
-      value={{
-        user,
-        accessToken,
-        isLoading,
-        login,
-        signup,
-        logout,
-        refresh,
-        updateUser,
-        isAuthenticated: Boolean(user),
-      }}
-    >
-      {children}
-    </AuthContext.Provider>
+    <GoogleOAuthProvider clientId={process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || ''}>
+      <AuthContext.Provider
+        value={{
+          user,
+          accessToken,
+          isLoading,
+          login,
+          signup,
+          googleLogin,
+          logout,
+          refresh,
+          updateUser,
+          isAuthenticated: Boolean(user),
+        }}
+      >
+        {children}
+      </AuthContext.Provider>
+    </GoogleOAuthProvider>
   );
 }
 

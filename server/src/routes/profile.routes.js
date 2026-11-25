@@ -10,9 +10,9 @@ import {
     getPublicProfile,
 } from '../controllers/profile.controller.js';
 
-
-
 const router = express.Router();
+
+const MAX_AVATAR_BYTES = 8 * 1024 * 1024; // 8 MB
 
 const ALLOWED_MIME_TYPES = new Set([
     'image/jpeg',
@@ -23,7 +23,7 @@ const ALLOWED_MIME_TYPES = new Set([
 
 const upload = multer({
     storage: multer.memoryStorage(),
-    limits: { fileSize: 2 * 1024 * 1024 }, // 2 MB
+    limits: { fileSize: MAX_AVATAR_BYTES },
     fileFilter: (req, file, cb) => {
         if (ALLOWED_MIME_TYPES.has(file.mimetype)) {
             cb(null, true);
@@ -38,7 +38,7 @@ function handleAvatarUpload(req, res, next) {
         if (!err) return next();
         if (err instanceof multer.MulterError && err.code === 'LIMIT_FILE_SIZE') {
             return res.status(400).json({
-                error: { code: 'VALIDATION_ERROR', message: 'Image must be 2 MB or smaller' },
+                error: { code: 'VALIDATION_ERROR', message: 'Image must be 8 MB or smaller' },
             });
         }
         return res.status(400).json({

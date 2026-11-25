@@ -1,13 +1,8 @@
 import { verifyAccessToken } from '../lib/jwt.js';
 import { prisma } from '../lib/prisma.js';
 import { ErrorCode } from '../constants/enums.js';
+import { checkUserBanStatus } from '../services/auth.service.js';
 
-/**
- * Middleware to require authentication
- * @param {object} req - Express request
- * @param {object} res - Express response
- * @param {Function} next - Express next function
- */
 export async function requireAuth(req, res, next) {
   try {
     const authHeader = req.headers.authorization;
@@ -21,7 +16,7 @@ export async function requireAuth(req, res, next) {
       });
     }
 
-    const token = authHeader.substring(7); // Remove 'Bearer ' prefix
+    const token = authHeader.substring(7);
 
     let decoded;
     try {
@@ -35,7 +30,6 @@ export async function requireAuth(req, res, next) {
       });
     }
 
-    // Fetch user from database
     const user = await prisma.user.findUnique({
       where: { id: decoded.sub },
       select: {
@@ -43,6 +37,10 @@ export async function requireAuth(req, res, next) {
         username: true,
         email: true,
         role: true,
+        avatarUrl: true,
+        isBanned: true,
+        bannedUntil: true,
+        banReason: true,
         createdAt: true,
         updatedAt: true,
       },
@@ -57,7 +55,16 @@ export async function requireAuth(req, res, next) {
       });
     }
 
-    // Attach user to request
+    const banCheck = await checkUserBanStatus(user);
+    if (banCheck.banned) {
+      return res.status(403).json({
+        error: {
+          code: 'ACCOUNT_BANNED',
+          message: banCheck.message,
+        },
+      });
+    }
+
     req.user = user;
     next();
   } catch (error) {
@@ -65,12 +72,6 @@ export async function requireAuth(req, res, next) {
   }
 }
 
-/**
- * Optional authentication middleware - doesn't reject if no token
- * @param {object} req - Express request
- * @param {object} res - Express response
- * @param {Function} next - Express next function
- */
 export async function optionalAuth(req, res, next) {
   try {
     const authHeader = req.headers.authorization;
@@ -95,17 +96,24 @@ export async function optionalAuth(req, res, next) {
         username: true,
         email: true,
         role: true,
+        avatarUrl: true,
+        isBanned: true,
+        bannedUntil: true,
+        banReason: true,
         createdAt: true,
         updatedAt: true,
       },
     });
 
     if (user) {
-      req.user = user;
+      const banCheck = await checkUserBanStatus(user);
+      if (!banCheck.banned) {
+        req.user = user;
+      }
     }
 
     next();
   } catch (error) {
     next(error);
   }
-}
+} 

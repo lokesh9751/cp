@@ -5,6 +5,9 @@ import { AuthProvider } from '@/context/AuthContext';
 export const metadata = {
   title: 'Competitive Pirates - Practice DSA. Compete. Level up.',
   description: 'Practice DSA and competitive programming problems, join contests, and track your progress.',
+  icons: {
+    icon: '/images/logo.svg',
+  },
 };
 
 export default function RootLayout({ children }) {

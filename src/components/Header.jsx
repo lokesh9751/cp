@@ -1,5 +1,5 @@
 'use client';
-
+import Logo from '@/components/Logo';
 import { useState, useEffect, useRef } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -158,12 +158,13 @@ export default function Header() {
               className="flex items-center gap-2 text-navy font-semibold text-body-lg no-underline"
               aria-label="Competitive Pirates home"
             >
-              <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <Logo className="w-8 h-8 shrink-0" />
+              {/* <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                 <circle cx="12" cy="12" r="10" />
                 <line x1="12" y1="2" x2="12" y2="22" />
                 <line x1="2" y1="12" x2="22" y2="12" />
                 <line x1="12" y1="2" x2="15.5" y2="15.5" />
-              </svg>
+              </svg> */}
               <span className="hidden sm:inline">Competitive Pirates</span>
             </Link>
 
@@ -326,6 +327,14 @@ export default function Header() {
                     >
                       Profile
                     </Link>
+                    <Link
+                      href="/settings"
+                      className="block w-full text-left px-4 py-2 text-sm text-text-primary hover:bg-bg-section transition-colors no-underline"
+                      role="menuitem"
+                      onClick={() => setUserMenuOpen(false)}
+                    >
+                      Settings
+                    </Link>
                     {user.role === 'SUPERUSER' && (
                       <Link
                         href="/superuser"
@@ -438,6 +447,14 @@ export default function Header() {
                     onClick={() => setMobileMenuOpen(false)}
                   >
                     Profile
+                  </Link>
+                  <Link
+                    href="/settings"
+                    className="block w-full text-left px-4 py-2 text-sm text-text-primary hover:bg-bg-section transition-colors no-underline"
+                    role="menuitem"
+                    onClick={() => setUserMenuOpen(false)}
+                  >
+                    Settings
                   </Link>
                   <button
                     type="button"

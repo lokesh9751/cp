@@ -315,9 +315,12 @@ export async function updateProfile(payload, accessToken) {
   return data.profile;
 }
 
-export async function uploadProfileAvatar(file, accessToken) {
+export async function uploadProfileAvatar(file, accessToken, crop = null) {
   const formData = new FormData();
   formData.append('avatar', file);
+  if (crop) {
+    formData.append('crop', JSON.stringify(crop));
+  }
 
   const { data } = await apiRequest('/api/profile/avatar', {
     method: 'POST',
@@ -669,4 +672,77 @@ export async function superuserToggleStealth(isProfileHidden, accessToken) {
     body: JSON.stringify({ isProfileHidden }),
   });
   return data.user;
+}
+
+export async function googleAuthApi(credential) {
+  const res = await fetch(`${API_BASE_URL}/api/auth/google`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({ credential }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const err = new Error(data?.error?.message || 'Google sign-in failed');
+    err.status = res.status;
+    throw err;
+  }
+  return data;
+}
+
+export async function changeEmailApi({ newEmail, currentPassword }, accessToken) {
+  const res = await fetch(`${API_BASE_URL}/api/auth/email`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${accessToken}`,
+    },
+    credentials: 'include',
+    body: JSON.stringify({ newEmail, currentPassword }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const err = new Error(data?.error?.message || 'Could not update email');
+    err.status = res.status;
+    throw err;
+  }
+  return data;
+}
+
+export async function changePasswordApi({ currentPassword, newPassword }, accessToken) {
+  const res = await fetch(`${API_BASE_URL}/api/auth/password`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${accessToken}`,
+    },
+    credentials: 'include',
+    body: JSON.stringify({ currentPassword, newPassword }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const err = new Error(data?.error?.message || 'Could not update password');
+    err.status = res.status;
+    throw err;
+  }
+  return data;
+}
+
+export async function deleteAccountApi({ confirmText }, accessToken) {
+  const res = await fetch(`${API_BASE_URL}/api/auth/account`, {
+    method: 'DELETE',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${accessToken}`,
+    },
+    credentials: 'include',
+    body: JSON.stringify({ confirmText }),
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    const err = new Error(data?.error?.message || 'Could not delete account');
+    err.status = res.status;
+    throw err;
+  }
+  return true;
 }
