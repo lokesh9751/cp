@@ -138,9 +138,8 @@ function Badge({ children, variant = 'default', className = '' }) {
 
   return (
     <span
-      className={`inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-badge ${
-        variants[variant] || variants.default
-      } ${className}`}
+      className={`inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-badge ${variants[variant] || variants.default
+        } ${className}`}
     >
       {children}
     </span>
@@ -156,11 +155,10 @@ function BookmarkButton({ slug, isBookmarked, isPending, onToggle }) {
         e.stopPropagation();
         onToggle(slug);
       }}
-      className={`w-8 h-8 inline-flex items-center justify-center rounded-md bg-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-navy ${
-        isBookmarked
+      className={`w-8 h-8 inline-flex items-center justify-center rounded-md bg-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-navy ${isBookmarked
           ? 'text-gold hover:bg-bg-section'
           : 'text-text-muted hover:text-text-primary hover:bg-bg-section'
-      }`}
+        }`}
       aria-label={isBookmarked ? 'Remove bookmark' : 'Add bookmark'}
       aria-pressed={isBookmarked}
       title={isBookmarked ? 'Remove bookmark' : 'Bookmark problem'}
@@ -494,7 +492,7 @@ export default function PracticeQuestions() {
     <section aria-labelledby="questions-heading">
       <header className="mb-6">
         <h2 id="questions-heading" className="text-section-title text-text-primary">
-          Practice questions
+          Problems
         </h2>
 
         {/* Category Tabs */}
@@ -510,11 +508,10 @@ export default function PracticeQuestions() {
               role="tab"
               aria-selected={filters.type === cat.value}
               onClick={() => updateFilter('type', cat.value)}
-              className={`flex-shrink-0 px-4 py-2 text-small-lg font-medium rounded-lg transition-colors whitespace-nowrap ${
-                filters.type === cat.value
+              className={`flex-shrink-0 px-4 py-2 text-small-lg font-medium rounded-lg transition-colors whitespace-nowrap ${filters.type === cat.value
                   ? 'bg-navy text-white'
                   : 'bg-bg-section text-text-primary hover:bg-navy hover:text-white'
-              }`}
+                }`}
             >
               {cat.label}
             </button>
@@ -829,11 +826,10 @@ export default function PracticeQuestions() {
                       key={pageNum}
                       type="button"
                       onClick={() => updateFilter('page', pageNum)}
-                      className={`w-9 h-9 text-small font-medium rounded-lg transition-colors ${
-                        pageNum === pagination.page
+                      className={`w-9 h-9 text-small font-medium rounded-lg transition-colors ${pageNum === pagination.page
                           ? 'bg-navy text-white'
                           : 'text-text-secondary hover:bg-bg-section hover:text-text-primary'
-                      }`}
+                        }`}
                       aria-current={pageNum === pagination.page ? 'page' : undefined}
                     >
                       {pageNum}
