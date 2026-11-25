@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import Logo from '@/components/Logo';
 
 export default function Footer() {
   const currentYear = new Date().getFullYear();
@@ -12,21 +13,7 @@ export default function Footer() {
             className="flex items-center gap-2 text-navy font-semibold text-body-lg no-underline"
             aria-label="Competitive Pirates home"
           >
-            <svg
-              className="w-5 h-5"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden="true"
-            >
-              <circle cx="12" cy="12" r="10" />
-              <line x1="12" y1="2" x2="12" y2="22" />
-              <line x1="2" y1="12" x2="22" y2="12" />
-              <line x1="12" y1="2" x2="15.5" y2="15.5" />
-            </svg>
+            <Logo className="w-8 h-8 shrink-0" />
             <span>Competitive Pirates</span>
           </Link>
 
