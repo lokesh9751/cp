@@ -17,6 +17,15 @@ export function normalizeOutput(str = '') {
     .trim();
 }
 
+function toBase64(str = '') {
+  return Buffer.from(String(str ?? ''), 'utf8').toString('base64');
+}
+
+function fromBase64(str) {
+  if (!str) return '';
+  return Buffer.from(String(str), 'base64').toString('utf8');
+}
+
 function buildHeaders() {
   const headers = { 'Content-Type': 'application/json' };
   if (config.judge0ApiKey) {
@@ -30,10 +39,10 @@ function buildHeaders() {
 
 function mapJudge0Result(data, expectedOutput = null) {
   const statusId = data?.status?.id;
-  const stdoutRaw = data?.stdout || '';
-  const stderrRaw = data?.stderr || '';
-  const compileOutputRaw = data?.compile_output || '';
-  const messageRaw = data?.message || '';
+  const stdoutRaw = fromBase64(data?.stdout);
+  const stderrRaw = fromBase64(data?.stderr);
+  const compileOutputRaw = fromBase64(data?.compile_output);
+  const messageRaw = fromBase64(data?.message);
   const runtimeMs = data?.time != null ? Math.round(parseFloat(data.time) * 1000) : null;
   const memoryKb = data?.memory != null ? Number(data.memory) : null;
 
@@ -84,7 +93,7 @@ function mapJudge0Result(data, expectedOutput = null) {
     };
   }
 
-  // 7..12 = Runtime Errors (NZEC, Segfault, etc.) or 13 = Internal Error
+  // 13 = Internal Error, 14 = Exec Format Error
   if (statusId === 13 || statusId === 14) {
     return {
       verdict: 'RUNTIME_ERROR',
@@ -118,13 +127,23 @@ export async function executeSingle({
 }) {
   const langConfig = LANGUAGE_MAP[language];
   if (!langConfig) {
-    throw new Error(`Unsupported language: ${language}`);
+    const err = new Error(`Unsupported language: ${language}`);
+    err.status = 400;
+    throw err;
+  }
+
+  if (!config.judge0ApiUrl) {
+    console.error('[Judge0 Error] JUDGE0_API_URL is not configured in environment variables');
+    const err = new Error('Code execution service is not configured');
+    err.status = 500;
+    throw err;
   }
 
   const baseUrl = config.judge0ApiUrl.replace(/\/+$/, '');
-  const endpoint = `${baseUrl}/submissions?base64_encoded=false&wait=true`;
+  const endpoint = `${baseUrl}/submissions?base64_encoded=true&wait=true`;
 
-  const cpuTimeLimitSec = Math.max(0.5, Number((timeLimitMs / 1000).toFixed(2)));
+  const cpuTimeLimitSec = Math.min(15, Math.max(0.5, Number((timeLimitMs / 1000).toFixed(2))));
+  const safeMemoryLimitKb = Math.min(512000, Math.max(2048, Number(memoryLimitKb) || 262144));
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 25000);
@@ -135,17 +154,30 @@ export async function executeSingle({
       headers: buildHeaders(),
       body: JSON.stringify({
         language_id: langConfig.id,
-        source_code: code,
-        stdin,
+        source_code: toBase64(code),
+        stdin: toBase64(stdin),
         cpu_time_limit: cpuTimeLimitSec,
-        memory_limit: memoryLimitKb,
+        memory_limit: safeMemoryLimitKb,
       }),
       signal: controller.signal,
     });
 
-    const data = await response.json().catch(() => ({}));
+    const rawText = await response.text();
+    let data = {};
+    try {
+      data = rawText ? JSON.parse(rawText) : {};
+    } catch {
+      data = { raw: rawText.slice(0, 500) };
+    }
 
     if (!response.ok) {
+      console.error('[Judge0 HTTP Error]', {
+        status: response.status,
+        endpoint,
+        hasApiKey: Boolean(config.judge0ApiKey),
+        data,
+      });
+
       const msg = data?.message || data?.error || `Judge0 HTTP ${response.status}`;
       const err = new Error(msg);
       err.status = response.status === 429 ? 429 : 502;
@@ -155,9 +187,17 @@ export async function executeSingle({
     return mapJudge0Result(data, expectedOutput);
   } catch (err) {
     if (err.name === 'AbortError') {
+      console.error('[Judge0 Timeout]', { endpoint, language });
       const timeoutErr = new Error('Judge execution timed out waiting for response');
       timeoutErr.status = 504;
       throw timeoutErr;
+    }
+
+    if (!err.status) {
+      console.error('[Judge0 Network/Unexpected Error]', {
+        endpoint,
+        message: err.message,
+      });
     }
     throw err;
   } finally {
